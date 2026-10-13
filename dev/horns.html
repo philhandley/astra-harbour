@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en-GB"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Harbour horns</title>
+<style>
+body{margin:0;min-height:100vh;display:grid;place-items:center;background:#ece6dc;font-family:system-ui,sans-serif;color:#26221d}
+.card{background:#fffdf9;border-radius:22px;padding:26px 28px;box-shadow:0 18px 50px rgba(60,50,35,.14);max-width:440px}
+h1{font-family:Georgia,serif;font-style:italic;font-weight:400;font-size:34px;margin:0 0 6px}
+p{color:#5d564d;font-size:14px;line-height:1.5;margin:0 0 16px}
+button{display:block;width:100%;margin:8px 0;padding:14px 16px;border:0;border-radius:14px;background:#1f1d1a;color:#fff;font-size:16px;text-align:left;cursor:pointer}
+button small{display:block;opacity:.7;font-size:12px;margin-top:2px}
+button.old{background:#e9e3d8;color:#26221d}
+</style></head><body>
+<div class="card">
+  <h1>Harbour horns</h1>
+  <p>Tap each one to hear it. Tell Claude which you like best and it will use that for the ship.</p>
+  <button data-h="new">A. New ship's horn<small>deep brassy reeds a fifth apart, with a harbour echo</small></button>
+  <button data-h="deep">B. Big ship, deeper<small>the same horn, lower and longer</small></button>
+  <button data-h="high">C. Little ship, higher<small>the same horn, a bit higher and shorter</small></button>
+  <button data-h="tug">D. The tug's toot<small>two short higher blasts</small></button>
+  <button class="old" data-h="old">E. The old horn<small>the first version, to compare</small></button>
+</div>
+<script type="module">
+import { initAudio, ensureAudio, horn, hornOld, toot } from '../js/audio.js';
+initAudio();
+const play = {
+  new: () => horn(2.6),
+  deep: () => horn(3.2, { f: 65.4, level: 0.6 }),
+  high: () => horn(2.0, { f: 110, level: 0.5 }),
+  tug: () => toot(),
+  old: () => hornOld(),
+};
+document.querySelectorAll('[data-h]').forEach(b => b.addEventListener('click', () => {
+  const c = ensureAudio();
+  const go = () => play[b.dataset.h]();
+  if (c && c.state !== 'running') c.resume().then(go); else go();
+}));
+if (new URLSearchParams(location.search).has('selftest')) {
+  const c = ensureAudio();
+  (c.state === 'running' ? Promise.resolve() : c.resume()).then(() => {
+    for (const k of Object.keys(play)) play[k]();
+    console.log('HORNS played all, context', c.state);
+    import('./shotkit.js').then(m => setTimeout(m.shotReady, 1500));
+  });
+}
+</script>
+</body></html>

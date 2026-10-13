@@ -34,8 +34,10 @@ export const points = { pegs: gullPegs(20) };
 export function templates() {
   const mb = new MeshBuilder();
   mb.set({ mat: MAT.PAINT, color: 0xffffff });
-  mb.cylinder(0, -PEG_H - 0.006, 0, 0.0068, PEG_H + 0.006, { seg: 10 });
+  // one solid peg (its top takes the tint) and a slightly wider band just under the top edge. No two faces share a
+  // plane, so nothing z-fights (the old rim had its own lid level with the peg's top, which flickered).
+  mb.cylinder(0, -PEG_H - 0.006, 0, 0.0068, PEG_H + 0.006, { seg: 12 });
   mb.set({ color: 0x8f8a80 });
-  mb.cylinder(0, -0.0015, 0, 0.0076, 0.0015, { seg: 10, bottom: false });
+  mb.cylinder(0, -0.0024, 0, 0.0077, 0.0016, { seg: 12, caps: false });
   return [{ name: 'peg', mesh: mb.finish() }];
 }
