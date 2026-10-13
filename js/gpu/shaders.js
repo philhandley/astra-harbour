@@ -198,7 +198,7 @@ fn matSurface(mat: u32, base0: vec3f, param: f32, wp: vec3f, lp: vec3f, n0: vec3
       var tang: vec3f;
       if (abs(n0.y) > 0.5) { tang = normalize(cross(n0, vec3f(1.0, 0.0, 0.0)) + vec3f(1e-4)); tang = normalize(cross(tang, n0)); }
       else { tang = normalize(vec3f(-n0.z, 0.0, n0.x) + vec3f(1e-4)); }
-      let ph = dot(lp, tang) * 260.0;
+      let ph = dot(lp, tang) * 260.0 * (1.0 + param * 3.0);
       s.n = normalize(n0 + tang * sin(ph) * 0.55);
       s.base = base0 * (0.9 + 0.1 * sin(ph));
       s.rough = 0.45; s.spec = 0.12;

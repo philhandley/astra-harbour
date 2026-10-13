@@ -38,7 +38,7 @@ The fragment shader draws a procedural pattern per material from the vertex's lo
 | TILES | clay roof tiles | courses run up the slope automatically |
 | SLATE | slate roofs | blue-grey courses |
 | TIMBER | planks with grain | `param` < 0.5: planks run along x, > 0.5: along z |
-| CORRUGATED | corrugated sheet walls and roofs | ribs are drawn (normal-perturbed) |
+| CORRUGATED | corrugated sheet walls and roofs | ribs are drawn (normal-perturbed); `param` raises the rib frequency (0 = sheds, 0.7 = containers) |
 | MASONRY | dressed stone blocks with mortar | |
 | BRICK | painted board cladding for houses (horizontal boards) | |
 | RUBBER | fenders, tyres | |

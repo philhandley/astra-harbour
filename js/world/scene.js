@@ -47,6 +47,7 @@ export class Scene {
     buildTerrain(mb);
     this.buildStats.terrain = mb.triangles;
     this.templates = [];
+    this.points = {};
     for (const name of names) {
       try {
         const mod = await import(`./geo/${name}.js`);
@@ -54,6 +55,7 @@ export class Scene {
         mod.build(mb, { scene: this });
         this.buildStats[name] = mb.triangles - before;
         if (mod.templates) for (const t of mod.templates()) this.templates.push(t);
+        if (mod.points) this.points[name] = mod.points;
       } catch (err) {
         if (!String(err).includes('Failed to fetch') && !String(err).includes('dynamically imported')) console.error('builder', name, err);
         else console.warn('builder missing', name);
@@ -65,6 +67,11 @@ export class Scene {
   }
 
   setTemplates(list) { this.templates = list; this.r.setTemplates(list); }
+  // Systems that bring their own instanced meshes (life, lifebuoys) add them here.
+  addTemplates(list) {
+    for (const t of list) { this.templates = this.templates.filter(x => x.name !== t.name); this.templates.push(t); }
+    this.r.setTemplates(this.templates);
+  }
 
   setObject(id, pos, q) {
     const o = this.objects, k = id * 8;

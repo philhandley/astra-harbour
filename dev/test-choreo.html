@@ -1,0 +1,128 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Choreography test</title>
+<pre id="out" style="font:12px monospace"></pre>
+<script type="module">
+// Headless test of the ship's day: runs several full loops in simulated time (no GPU) and checks that the ship and
+// the tug never hit the quay, the block edges, the breakwater, the pier, the moored boats, yachts or buoys, never
+// ground, and never overlap each other (except the tug's push, which may touch). Prints PASS/FAIL lines.
+// Run: bash tools/shot.sh choreo "dev/test-choreo.html" 400,300 120   (or open it in a browser)
+import { shotReady } from './shotkit.js';
+import { WaterSim } from '../js/sim/water.js';
+import { buildTerrainGrid } from '../js/world/terrain.js';
+import { Cargo } from '../js/sim/cargo.js';
+import { CraneYard } from '../js/sim/cranes.js';
+import { Harbour, TUG } from '../js/sim/ships.js';
+import { OBJ } from '../js/world/env.js';
+import { B, QUAY_Z, SHIP, FISHBOAT, BOAT_MOOR, MOORING_BUOYS, CHANNEL_BUOY, floorHeight, breakwaterHeight, inPier } from '../js/world/layout.js';
+
+const q = new URLSearchParams(location.search);
+const LOOPS = Number(q.get('loops') || 2);
+const out = document.getElementById('out');
+const log = (...a) => { const s = a.join(' '); console.log('CHOREO ' + s); out.textContent += s + '\n'; };
+
+const terrain = buildTerrainGrid(128);
+const scene = {
+  sim: new WaterSim(128, terrain), sea: 0, time: 0,
+  objects: new Float32Array(32 * 8), instanceGroups: [], sprites: { data: new ArrayBuffer(24 * 10), count: 0 },
+  setObject(id, p, r) { const o = this.objects, k = id * 8; o[k] = p[0]; o[k + 1] = p[1]; o[k + 2] = p[2]; o[k + 4] = r[0]; o[k + 5] = r[1]; o[k + 6] = r[2]; o[k + 7] = r[3]; },
+  getObject(id) { const o = this.objects, k = id * 8; return { pos: [o[k], o[k + 1], o[k + 2]], q: [o[k + 4], o[k + 5], o[k + 6], o[k + 7]] }; },
+};
+for (let i = 0; i < 32; i++) scene.objects[i * 8 + 7] = 1;
+const cargo = new Cargo(scene);
+const cranes = new CraneYard(scene, cargo);
+cranes.speed = 3;
+const harbour = new Harbour(scene, cranes);
+let workCalls = 0;
+harbour.work = async () => { workCalls++; await new Promise(r => setTimeout(r, 0)); };
+harbour.start();
+
+const HL = SHIP.length / 2, HB = SHIP.beam / 2;
+const shipOutline = [[-HL, -HB], [0.55, -HB], [0.82, -0.10], [HL, 0], [0.82, 0.10], [0.55, HB], [-HL, HB]];
+const tugOutline = [[-TUG.halfL, -TUG.halfB - 0.008], [0.10, -TUG.halfB - 0.008], [TUG.halfL + 0.01, 0], [0.10, TUG.halfB + 0.008], [-TUG.halfL, TUG.halfB + 0.008]];
+function world(o, x, z, yaw) { const c = Math.cos(yaw), s = Math.sin(yaw); return o.map(([lx, lz]) => [x + c * lx + s * lz, z - s * lx + c * lz]); }
+function densify(poly, step = 0.03) {
+  const pts = [];
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i], b = poly[(i + 1) % poly.length], n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / step));
+    for (let k = 0; k < n; k++) pts.push([a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n]);
+  }
+  return pts;
+}
+function inside(poly, p) {
+  let c = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const a = poly[i], b = poly[j];
+    if ((a[1] > p[1]) !== (b[1] > p[1]) && p[0] < ((b[0] - a[0]) * (p[1] - a[1])) / (b[1] - a[1]) + a[0]) c = !c;
+  }
+  return c;
+}
+const boatRects = BOAT_MOOR.map(m => world([[-FISHBOAT.length / 2, -FISHBOAT.beam / 2], [FISHBOAT.length / 2, -FISHBOAT.beam / 2], [FISHBOAT.length / 2, FISHBOAT.beam / 2], [-FISHBOAT.length / 2, FISHBOAT.beam / 2]], m.x, m.z, m.yaw));
+const buoys = [...MOORING_BUOYS, CHANNEL_BUOY];
+
+const stats = { quay: 9, edge: 9, yacht: 9, buoy: 9, boat: 9 };
+const fails = {};
+function fail(kind, msg) { fails[kind] = (fails[kind] || 0) + 1; if (fails[kind] <= 3) log('  hit', kind, msg); }
+
+function checkHull(name, pts, draft, isShipAtBerth) {
+  for (const [x, z] of pts) {
+    const cq = z - QUAY_Z;
+    if (cq < stats.quay) stats.quay = cq;
+    if (cq < 0.012) fail(name + '-quay', `(${x.toFixed(2)}, ${z.toFixed(2)}) phase ${harbour.phase}`);
+    const ce = B - Math.max(Math.abs(x), z);
+    if (ce < stats.edge) stats.edge = ce;
+    if (ce < 0.02) fail(name + '-edge', `(${x.toFixed(2)}, ${z.toFixed(2)}) phase ${harbour.phase}`);
+    if (breakwaterHeight(x, z) > -draft - 0.02) fail(name + '-breakwater', `(${x.toFixed(2)}, ${z.toFixed(2)}) phase ${harbour.phase}`);
+    if (floorHeight(x, z) > -draft - 0.01) fail(name + '-ground', `(${x.toFixed(2)}, ${z.toFixed(2)})`);
+    if (inPier(x, z, 0.01)) fail(name + '-pier', `(${x.toFixed(2)}, ${z.toFixed(2)})`);
+    for (const r of boatRects) if (inside(r, [x, z])) fail(name + '-fishboat', `(${x.toFixed(2)}, ${z.toFixed(2)})`);
+    for (const y of harbour.yachts) {
+      const o = scene.getObject(y.id); const d = Math.hypot(o.pos[0] - x, o.pos[2] - z) - 0.14;
+      if (d < stats.yacht) stats.yacht = d;
+      if (d < 0) fail(name + '-yacht', `(${x.toFixed(2)}, ${z.toFixed(2)})`);
+    }
+    for (const b of buoys) {
+      const d = Math.hypot(b[0] - x, b[1] - z) - 0.045;
+      if (d < stats.buoy) stats.buoy = d;
+      if (d < 0) fail(name + '-buoy', `(${x.toFixed(2)}, ${z.toFixed(2)})`);
+    }
+  }
+}
+
+const dt = 1 / 30;
+let t = 0, loops = 0, lastPhase = '', phaseT = 0, minShipTug = 9;
+const phaseLog = [];
+harbour.on('phase', p => { phaseLog.push(`${p}@${t.toFixed(1)}`); if (p === 'work' && lastPhase) loops++; lastPhase = p; });
+harbour.on('horn', () => phaseLog.push(`horn@${t.toFixed(1)}`));
+const t0 = performance.now();
+while (loops < LOOPS && t < 600) {
+  for (let k = 0; k < 15; k++) {
+    t += dt; scene.time = t;
+    cranes.update(dt);
+    harbour.update(dt);
+    scene.sim.step(dt);
+    const sh = harbour.ship, tg = harbour.tug;
+    const sp = densify(world(shipOutline, sh.x, sh.z, sh.yaw));
+    const tp = densify(world(tugOutline, tg.x, tg.z, tg.yaw), 0.02);
+    checkHull('ship', sp, SHIP.draft, harbour.phase === 'work');
+    checkHull('tug', tp, TUG.draft, false);
+    const shipPoly = world(shipOutline, sh.x, sh.z, sh.yaw), tugPoly = world(tugOutline, tg.x, tg.z, tg.yaw);
+    let overlap = 0;
+    for (const p of tp) if (inside(shipPoly, p)) overlap++;
+    for (const p of sp) if (inside(tugPoly, p)) overlap++;
+    if (overlap) fail('ship-tug', `overlap ${overlap} pts, phase ${harbour.phase}, tug (${tg.x.toFixed(2)}, ${tg.z.toFixed(2)})`);
+    let dmin = 9;
+    for (const p of tp) for (const r of sp) { const d = Math.hypot(p[0] - r[0], p[1] - r[1]); if (d < dmin) dmin = d; }
+    if (dmin < minShipTug && harbour.phase !== 'castingOff' && harbour.phase !== 'berthing') minShipTug = dmin;
+  }
+  await new Promise(r => setTimeout(r, 0));
+}
+log('simulated', t.toFixed(0), 's,', loops, 'loops in', Math.round(performance.now() - t0), 'ms; work() called', workCalls, 'times');
+log('phases', phaseLog.slice(0, 24).join(' '));
+log('min clearance: quay', stats.quay.toFixed(3), 'edge', stats.edge.toFixed(3), 'yacht', stats.yacht.toFixed(3), 'buoy', stats.buoy.toFixed(3), 'ship-tug (cruising)', minShipTug.toFixed(3));
+const keys = Object.keys(fails);
+if (!keys.length && loops >= LOOPS) log('PASS no collisions in', loops, 'loops');
+else log('FAIL', keys.map(k => `${k}:${fails[k]}`).join(' ') || 'loops did not complete');
+window.__result = { fails, stats, loops };
+shotReady();
+</script>

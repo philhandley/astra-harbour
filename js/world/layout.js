@@ -97,9 +97,15 @@ export const BW = { z: 0.85, headX: 1.15, crestY: 0.16, wallTop: 0.26, crestHalf
 export const LIGHTHOUSE = { x: BW.headX, z: BW.z, baseR: 0.10, towerTop: 0.62, lanternTop: 0.74 };
 
 // Open basin floats
-export const YACHT_MOOR = [{ x: -1.05, z: 1.30 }, { x: -2.10, z: 2.12 }];
-export const MOORING_BUOYS = [[-1.05, 1.30], [-2.10, 2.12], [-0.35, 2.30]];
-export const CHANNEL_BUOY = [0.78, 1.55];
+export const YACHT_MOOR = [{ x: -1.05, z: 1.30 }, { x: -2.25, z: 2.25 }];
+export const MOORING_BUOYS = [[-1.05, 1.30], [-2.25, 2.25], [-0.82, 0.80]];
+export const CHANNEL_BUOY = [0.80, 1.60];
+
+// The ship's lap: a circle in the open basin. Its swept band (radius LAP.r -+ hull) clears the quay, the block
+// edges and the breakwater; yacht 1 and one mooring buoy sit inside it, yacht 2 and the channel buoy outside.
+export const LAP = { cx: -1.0, cz: 0.95, r: 1.05 };
+export const APPROACH_Z = -0.10;          // the ship stops here, parallel to the quay, before the tug pushes her in
+export const TUG_STANDBY = { x: 0.78, z: 0.32 };
 
 // Seabed details that builders may place
 export const SEABED_SPOTS = { anchor: [-1.6, 0.6], tyre: [0.1, 0.35] };
