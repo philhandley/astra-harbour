@@ -66,9 +66,9 @@ function harbourEcho() {
 }
 
 // opts: f (lower reed pitch in Hz), len (seconds), level
-export function horn(len = 1.4, opts = {}) {
+export function horn(len = 1.1, opts = {}) {
   if (!ready()) return;
-  const f = opts.f || 130.8, level = opts.level || 0.55;
+  const f = opts.f || 98, level = opts.level || 0.55;
   const t = ctx.currentTime, end = t + len;
   const hold = Math.max(t + 0.3, end - Math.min(0.45, len * 0.4));   // when the release begins
   // output envelope: a firm start with a slight overshoot, a steady blast, a breathy tail
