@@ -45,6 +45,7 @@ async function boot() {
   }
   app.scene = scene;
   scene.setFlavour(setting('flavour') || 'seaglass');
+  app.setFirmness(1);
   placeDefaults(scene);
 
   app.cargo = new Cargo(scene);
@@ -198,7 +199,7 @@ app.horn = (fromShip = false) => {
   audio.horn();
   const f = funnel('ship');
   if (f) app.particles.steam(f[0], f[1], f[2]);
-  if (app.life) app.life.horn();
+  if (app.life) { app.life.horn(); setTimeout(() => audio.gullCall(), 500); }
   if (!fromShip) app.activity = Math.min(1.2, app.activity + 0.3);
 };
 app.feed = () => {
@@ -214,7 +215,8 @@ app.castOffOrCallIn = () => {
   if (h.atBerth) { if (app.autowork.running) app.autowork.castOffNow(); else h.finishWork(); }
 };
 app.setFlavour = id => { app.scene.setFlavour(id); setting('flavour', id); };
-app.setFirmness = v => { app.firmness = v; app.scene.firmness = v; app.scene.sim.sigma = 0.0006 + 0.0018 * v; };
+// surface tension stays below the solver's stable limit (about 0.0028 at 120 substeps a second)
+app.setFirmness = v => { app.firmness = v; app.scene.firmness = v; app.scene.sim.sigma = 0.0005 + 0.0014 * v; };
 app.setDamping = v => { app.damping = v; app.scene.sim.damping = v; };
 app.setTide = v => { app.tide = v; app.scene.tide = v; app.scene.sim.setSea(app.scene.sea); };
 app.togglePause = () => { app.paused = !app.paused; };

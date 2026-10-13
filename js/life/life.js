@@ -48,7 +48,8 @@ export async function attach(scene, ctx = null) {
   const bites = new WeakMap();
 
   const stats = { n: 0, ms: 0, t: 0 };
-  const log = q && q.get('lifelog');
+  const pageQ = typeof location !== 'undefined' ? new URLSearchParams(location.search) : null;
+  const log = (q && q.get('lifelog')) || (pageQ && pageQ.get('lifelog'));
   if (log) console.log('LIFE templates', tpls.map(t => `${t.name} ${t.tris}`).join(', '), '| fish', fish.fish.length, 'gulls', gulls.gulls.length, 'jellies', jellies.list.length, 'bubbles', bubbles.list.length);
 
   const show = q && q.get('lifeshow');
