@@ -13,7 +13,8 @@ Read `ENGINE.md` first: it is the contract for every model builder and system (c
 - `js/world/layout.js` is the only place coordinates live. Builders in `js/world/geo/` write into one shared MeshBuilder; moving rigs carry an object id and get their transforms from `scene.setObject`.
 - Containers, crates, lifebuoys, fish, gulls, jellyfish and bubbles are GPU instances (48-byte records, see ENGINE.md).
 - Relative paths everywhere (GitHub Pages sub-path). localStorage only (`astraharbour.v1`). Cache prefix `astraharbour-`. Manifest id `/astra-harbour/`.
-- Keep the simulation under about 2 ms a frame (it is about 0.9 ms). DPR is capped at 1.5; the loop pauses when the page is hidden.
+- Keep the simulation under about 2 ms a frame (it is about 0.8 ms). DPR is capped at 1.5; the loop pauses when the page is hidden.
+- The water solver must keep a fixed 1/120 s substep (time accumulator). A substep that varies with frame-time jitter, or smoothing the heights without the velocities, makes the stiff short jelly waves grow until the sea explodes. Surface tension (Firmness) is capped below the stable limit; `dev/test-choreo.html?jitter=1` checks it.
 - If WebGPU is missing, the flat 2D stage (`js/stage2d.js`) runs both games. `?flat` forces it for testing.
 
 ## Content rules
@@ -26,7 +27,9 @@ Read `ENGINE.md` first: it is the contract for every model builder and system (c
 ## Testing
 - `bash tools/shot.sh <name> "<path?query>" [W,H] [max-seconds]`: headless Chrome with real WebGPU; the page calls `shotReady()` (dev/shotkit.js) when it is ready. The app does this with `?shot=` and `&frames=N`.
 - `dev/view.html?b=<builders>&view=home|ship|pier|sea&cam=yaw,pitch,dist,tx,ty,tz&sys=<module>`: the scene on its own.
-- `dev/test-choreo.html?loops=3`: runs the ship's day, the tug and the boats' parade in simulated time and checks every hull against the quay, edges, breakwater, pier, boats, yachts, buoys and each other, plus grounding. Must print PASS.
+- `dev/test-choreo.html?loops=3&jitter=1`: runs the ship's day, the tug and the boats' parade in simulated time and checks every hull against the quay, edges, breakwater, pier, boats, yachts, buoys and each other, plus grounding, and that the water stays stable at 60 fps with jittered frame times. Must print PASS.
+- `dev/test-input.html`: drives the canvas with pointer events (throw a lifebuoy, waves, tip, orbit, zoom, panel buttons). Must print PASS.
+- `dev/test-flat.html`: the no-WebGPU flat harbour.
 - `dev/test-e2e.html?game=tables&key=5&level=1&wrong=1`: plays a whole round of the real app by tapping its buttons. `bash tools/e2e_all.sh` runs every level. Run one at a time: two GPU-heavy headless browsers at once can stall.
 - Offline: `python tools/slowserve.py 8601`, then `bash tools/swtest.sh` (headless Edge).
 - Run `python tools/build_sw.py` after any change, before committing.

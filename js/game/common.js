@@ -39,7 +39,9 @@ export async function ask(ui, ans, opts, factId, onWrong) {
     ui.markTile(v, 'nope');
     audio.hmm();
     ui.lockTiles(true);
+    ui.feedback(nopes.length === 1 ? "Let's count them together." : "Let's count again, slowly.");
     await onWrong(v);
+    ui.feedback('Now which one is it?');
     ui.lockTiles(false);
   }
 }
