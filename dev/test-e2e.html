@@ -22,6 +22,8 @@ const w = f.contentWindow;
 w.addEventListener('error', e => errors.push(String(e.message)));
 const ce = w.console.error.bind(w.console);
 w.console.error = (...a) => { errors.push(a.map(String).join(' ')); ce(...a); };
+const spokenLines = [];
+try { const sy = w.speechSynthesis, orig = sy.speak.bind(sy); sy.speak = u => { if (u.text.trim()) spokenLines.push(u.text); return orig(u); }; } catch (e) { /* no speech */ }
 const wrongFirst = q.get('wrong') === '1';
 let taps = 0, answers = 0, wrongs = 0, done = false, lastQ = '';
 const lineState = {};
@@ -77,6 +79,7 @@ while (!done && performance.now() < deadline) {
 }
 const secs = ((performance.now() - t0) / 1000).toFixed(1);
 log(`taps ${taps}, answers ${answers}, wrong taps ${wrongs}, ${secs}s`);
+log(`spoken ${spokenLines.length} lines; questions spoken: ${spokenLines.filter(t => /\?|Load|Fill|Sound|crates|gulls/.test(t)).slice(0, 4).join(' | ')}`);
 if (errors.length) log('console errors:', errors.slice(0, 5).join(' | '));
 log(done && !errors.length ? 'PASS' : 'FAIL', done ? '' : '(round did not finish)');
 shotReady();

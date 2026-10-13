@@ -32,6 +32,7 @@ window.__app = app;
 async function boot() {
   audio.initAudio();
   audio.setSound(setting('sound'));
+  setVoice(setting('sound') !== false);
   const canvas = document.getElementById('stage');
   if (q.has('flat')) { showFallback('(Testing the flat harbour.)'); return; }
   let scene;
