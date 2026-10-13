@@ -48,11 +48,18 @@ export class Tables {
         ui.bigEnabled(false);
         await st.loadRow(rows, t);
         rows++;
-        ui.counter(rows * t, `boxes on the ship`);
-        st.rowLabel(rows - 1, rows * t);
         audio.countNote(rows - 1);
-        say(String(rows * t), { interrupt: true });
         addTally('boxes', t);
+        if (i < k - 1) {
+          // count along as each row lands: 5, 10, 15...
+          ui.counter(rows * t, `boxes on the ship`);
+          st.rowLabel(rows - 1, rows * t);
+          say(String(rows * t), { interrupt: true });
+        } else {
+          // the last row of the batch is the question, so its total is never shown or said
+          ui.counter('?', `boxes on the ship`);
+          st.rowLabel(rows - 1, '?');
+        }
       }
       ui.clearAct();
       await sleep(1.0);

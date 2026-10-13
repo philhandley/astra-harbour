@@ -30,7 +30,17 @@ while (!done && performance.now() < deadline) {
   await new Promise(r => setTimeout(r, 250));
   const d = w.document;
   const qt = d.querySelector('#qText');
-  if (qt && qt.textContent !== lastQ) { lastQ = qt.textContent; log(`${((performance.now() - t0) / 1000).toFixed(1)}s Q: ${lastQ}`); }
+  if (qt && qt.textContent !== lastQ) {
+    lastQ = qt.textContent;
+    const labs = [...d.querySelectorAll('#labels .lab')].filter(l => l.style.display !== 'none').map(l => l.textContent).join(',');
+    const num = d.querySelector('#qNum') ? d.querySelector('#qNum').textContent : '';
+    log(`${((performance.now() - t0) / 1000).toFixed(1)}s Q: ${lastQ} | counter "${num}" labels [${labs}]`);
+  }
+  if (q.has('snaplast') && qt && /^Load/.test(qt.textContent) && d.querySelector('#qNum') && d.querySelector('#qNum').textContent === '?') {
+    await new Promise(r => setTimeout(r, 300));
+    const labs = [...d.querySelectorAll('#labels .lab')].filter(l => l.style.display !== 'none').map(l => l.textContent).join(',');
+    log('last row landed: counter "?" labels [' + labs + ']'); done = true; break;
+  }
   const home = d.querySelector('#pHome');
   if (home) { log('patch card:', d.querySelector('.patch h3').textContent, '/', d.querySelector('.patch b').textContent); done = true; break; }
   const big = d.querySelector('#qBig');
