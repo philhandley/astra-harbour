@@ -34,6 +34,8 @@ while (!done && performance.now() < deadline) {
   const home = d.querySelector('#pHome');
   if (home) { log('patch card:', d.querySelector('.patch h3').textContent, '/', d.querySelector('.patch b').textContent); done = true; break; }
   const big = d.querySelector('#qBig');
+  const stopAt = Number(q.get('stop') || 0);
+  if (stopAt && taps >= stopAt) { await new Promise(r => setTimeout(r, Number(q.get('hold') || 2600))); log('stopped after', taps, 'taps'); done = true; break; }
   if (big && !big.disabled) { big.click(); taps++; continue; }
   const act = d.querySelector('#qAct');
   const tiles = [...d.querySelectorAll('.tile:not(.nope)')];

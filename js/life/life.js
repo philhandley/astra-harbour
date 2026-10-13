@@ -172,7 +172,10 @@ export async function attach(scene, ctx = null) {
     for (const g of gulls.gulls) {
       if (!['circle', 'transit', 'orbit', 'toFood'].includes(g.mode)) continue;
       const under = hab.safeTop(g.pos[0], g.pos[2]) - g.pos[1];
-      if (under > 0.03) { bad.gullLow++; bad.worstGull = Math.max(bad.worstGull, +under.toFixed(3)); }
+      if (under > 0.03) {
+        bad.gullLow++;
+        if (under > bad.worstGull) { bad.worstGull = +under.toFixed(3); bad.where = `${g.id} ${g.mode} ${g.pos.map(v => v.toFixed(2)).join(',')} vy ${g.vy.toFixed(2)}`; }
+      }
     }
   }
 

@@ -1,6 +1,6 @@
 // Shared surroundings for the harbour wildlife: where the open water is, how deep it is, where the hulls sit,
 // how high a gull must fly to clear the town and the cranes, and a small writer for 48-byte instances.
-import { B, SEA, QUAY_Z, QUAY_TOP, LAND_Z, LIGHT_TOWERS, LIGHTHOUSE, CHURCH, BW, CRANE, BERTH, SHIP, FISHBOAT,
+import { B, SEA, TIDE, QUAY_Z, QUAY_TOP, LAND_Z, LIGHT_TOWERS, LIGHTHOUSE, CHURCH, BW, CRANE, BERTH, SHIP, FISHBOAT,
   floorHeight, landHeight, inBreakwater, inPier } from '../world/layout.js';
 import { OBJ } from '../world/env.js';
 import { MAT } from '../gpu/mesh.js';
@@ -16,12 +16,16 @@ export class Habitat {
     this.hullFn = ctx && typeof ctx.hulls === 'function' ? () => ctx.hulls() : null;
     // seabed height at grid nodes (the basin shape continues under the quay so the bilinear read never jumps)
     this.floor = new Float32Array((G + 1) * (G + 1));
-    for (let j = 0; j <= G; j++) for (let i = 0; i <= G; i++) this.floor[j * (G + 1) + i] = floorHeight(-B + i * CELL, -B + j * CELL);
-    // open water for swimmers (deep enough, in front of the quay wall, inside the block) and the distance to its edge
+    // (lifted a little over the breakwater, where the rubble rocks stand proud of the smooth mound)
+    for (let j = 0; j <= G; j++) for (let i = 0; i <= G; i++) {
+      const x = -B + i * CELL, z = -B + j * CELL;
+      this.floor[j * (G + 1) + i] = floorHeight(x, z) + (inBreakwater(x, z, 0.03) ? 0.035 : 0);
+    }
+    // open water for swimmers (deep enough even at low tide, in front of the quay wall, inside the block) and the distance to its edge
     const blocked = new Uint8Array(G * G);
     for (let j = 0; j < G; j++) for (let i = 0; i < G; i++) {
       const x = -B + (i + 0.5) * CELL, z = -B + (j + 0.5) * CELL;
-      blocked[j * G + i] = (z < QUAY_Z + 0.012 || floorHeight(x, z) > SEA - 0.075 || Math.abs(x) > B - 0.05 || Math.abs(z) > B - 0.05) ? 1 : 0;
+      blocked[j * G + i] = (z < QUAY_Z + 0.012 || floorHeight(x, z) > SEA - TIDE - 0.07 || Math.abs(x) > B - 0.05 || Math.abs(z) > B - 0.05) ? 1 : 0;
     }
     this.dist = chamfer(blocked, G, CELL);
     this.hulls = [];

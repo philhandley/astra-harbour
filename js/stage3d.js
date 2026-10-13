@@ -83,7 +83,7 @@ export class Stage3D {
     await this.app.cranes.move(g, { kind: 'ship', bay: i });
   }
 
-  rowTop(i, size) { return [bayX(i), SHIP.hatchY + (size === 10 ? 2 : 1) * BOX.H + 0.012, -0.16]; }
+  rowTop(i, size) { return [bayX(i), SHIP.hatchY + (size === 10 ? 2 : 1) * BOX.H + 0.01, 0.15]; }
   rowLabel(i, value, secs = 0, colour) {
     const g = this.app.cargo.groupAt('ship', i);
     return this.label(String(value), OBJ.SHIP, this.rowTop(i, g ? g.size : 5), { colour: colour || (g && g.colour) || '#222', secs });

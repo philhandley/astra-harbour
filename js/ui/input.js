@@ -75,13 +75,22 @@ export function attachInput(app) {
     if (lb) { held = lb; app.lifebuoys.hold(lb); mode = 'carry'; cv.className = 'grab'; return; }
     const h = hitBlock(ray);
     if (h && h.kind === 'side') { mode = 'tip'; tipFace = h.face; tipStart = { x: e.clientX, y: e.clientY }; return; }
-    if (h && h.kind === 'water') { mode = 'wave'; wave(h.point, 0.6); return; }
+    if (h && h.kind === 'water') { mode = 'wave'; app.inputMode = mode; lastWave = null; wave(h.point, 0.8); return; }
     mode = 'orbit'; cv.className = 'grab';
+    app.inputMode = h ? 'orbit-' + h.kind : 'orbit-none';
   });
 
+  let lastWave = null;
   function wave(p, strength) {
     const s = app.scene;
-    s.sim.disturb(p[0], p[2], 0.085, 0.006 * strength);
+    // fill the gap since the last point so a fast drag leaves a continuous furrow
+    const steps = lastWave ? Math.min(6, Math.ceil(Math.hypot(p[0] - lastWave[0], p[2] - lastWave[2]) / 0.05)) : 1;
+    for (let k = 1; k <= steps; k++) {
+      const t = k / steps;
+      const x = lastWave ? lastWave[0] + (p[0] - lastWave[0]) * t : p[0], z = lastWave ? lastWave[2] + (p[2] - lastWave[2]) * t : p[2];
+      s.sim.disturb(x, z, 0.1, (0.014 * strength) / steps);
+    }
+    lastWave = p;
     if (strength > 0.5) s.sim.addFoam(p[0], p[2], 0.05, 0.12 * strength);
     if (app.life) app.life.scatter(p[0], p[2], 0.35, strength);
     app.activity = Math.min(1.5, app.activity + 0.05 * strength);
@@ -103,7 +112,8 @@ export function attachInput(app) {
     if (mode === 'orbit') app.scene.camera.orbit(-dx * 0.006, dy * 0.004);
     else if (mode === 'wave') {
       const h = hitBlock(rayAt(e));
-      if (h && h.kind === 'water') wave(h.point, clamp(Math.hypot(dx, dy) / 14, 0.15, 1.4));
+      if (h && h.kind === 'water') wave(h.point, clamp(Math.hypot(dx, dy) / 10, 0.35, 1.6));
+      else lastWave = null;
     } else if (mode === 'tip') {
       const amt = clamp((e.clientY - tipStart.y) / 260, -1, 1) * 0.16;
       app.scene.holdTilt(amt * tipFace[1], -amt * tipFace[0]);

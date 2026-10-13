@@ -154,7 +154,7 @@ export class Jellies {
       if (sp > 0.05) { j.vx *= 0.05 / sp; j.vz *= 0.05 / sp; }
       const ox = j.x, oz = j.z;
       j.x += j.vx * dt; j.y += j.vy * dt; j.z += j.vz * dt;
-      if (h.wallDist(j.x, j.z) < 0.06 || !sim.isWater(j.x, j.z)) { j.x = ox; j.z = oz; j.vx *= -0.3; j.vz *= -0.3; }
+      if ((h.wallDist(j.x, j.z) < 0.06 || !sim.isWater(j.x, j.z)) && h.wallDist(ox, oz) >= 0.06) { j.x = ox; j.z = oz; j.vx *= -0.3; j.vz *= -0.3; }
       j.y = clamp(j.y, Math.min(floorY, ceilY), Math.max(ceilY, floorY));
       j.spin += j.spinRate * dt;
       // lean a little into the drift

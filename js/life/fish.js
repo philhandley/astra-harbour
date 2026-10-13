@@ -159,7 +159,12 @@ export class Fish {
       sc.goal = this.pickGoal(region);
       this.schools.push(sc);
       for (let i = 0; i < n; i++) {
-        const f = this.spawn(sp, sc.goal[0] + rand.range(-0.1, 0.1), sc.goal[1] + rand.range(-0.1, 0.1));
+        let x = sc.goal[0], z = sc.goal[1];
+        for (let k = 0; k < 12; k++) {
+          const tx = sc.goal[0] + rand.range(-0.1, 0.1), tz = sc.goal[1] + rand.range(-0.1, 0.1);
+          if (this.validFor(SPECIES[sp], tx, tz)) { x = tx; z = tz; break; }
+        }
+        const f = this.spawn(sp, x, z);
         f.school = sc; sc.members.push(f);
       }
     }
@@ -379,7 +384,7 @@ export class Fish {
       if (f.vy > vyMax) f.vy = vyMax; else if (f.vy < -vyMax) f.vy = -vyMax;
       const ox = f.x, oz = f.z;
       f.x += f.vx * dt; f.y += f.vy * dt; f.z += f.vz * dt;
-      if (h.wallDist(f.x, f.z) < 0.01 || !h.sim.isWater(f.x, f.z)) {
+      if ((h.wallDist(f.x, f.z) < 0.01 || !h.sim.isWater(f.x, f.z)) && h.wallDist(ox, oz) >= 0.01 && h.sim.isWater(ox, oz)) {
         f.x = ox; f.z = oz;
         h.wallAway(f.x, f.z, tmp);
         const vn = f.vx * tmp[0] + f.vz * tmp[1];

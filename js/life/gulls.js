@@ -135,7 +135,10 @@ export class Gulls {
     this.lastList = null; this.lastNorm = null;
     this.gulls = [];
     const n = opts.count || 9;
-    const perches = this.perches();
+    const perches = this.perches().filter(p => {
+      const w = this.perchWorld(p, SCALE);
+      return !hab.overhead(w[0], w[2], w[1] + 0.05) && this.approachPoint(w)[1] - w[1] <= 0.45;
+    });
     const order = perches.map((p, i) => i).sort(() => rand() - 0.5);
     for (let i = 0; i < n; i++) {
       const g = {
@@ -333,6 +336,9 @@ export class Gulls {
   // Free flight toward a horizontal direction and a height, never below the obstacles' safe top (when guarded).
   fly(g, dt, dx, dz, ty, speedT, guard = true, look = 0.55, maxDown = 0.17) {
     const p = g.pos;
+    // under a crane boom: never climb into it, slip out seaward first
+    const under = guard && this.hab.overhead(p[0], p[2], p[1] + 0.06);
+    if (under) { dx = 0; dz = 1; }
     // keep inside the block
     if (Math.abs(p[0]) > B - 0.35 || Math.abs(p[2]) > B - 0.35) { dx += -p[0] * 0.8; dz += -p[2] * 0.8; }
     const want = Math.atan2(-dz, dx);
@@ -348,12 +354,7 @@ export class Gulls {
     }
     let vyT = clamp((ty - p[1]) * 1.3, -maxDown, 0.22);
     if (guard && p[1] < minY) { vyT = Math.max(vyT, 0.3); speedT *= 0.55; }
-    if (this.hab.overhead(p[0], p[2], p[1] + 0.06)) {
-      // under a crane boom: never climb into it, slip out seaward first
-      vyT = Math.min(vyT, 0); speedT = Math.max(speedT, CRUISE);
-      const yawOut = Math.atan2(-1, 0);
-      g.yaw = wrap(g.yaw + clamp(wrap(yawOut - g.yaw), -2 * dt, 2 * dt));
-    }
+    if (under) { vyT = Math.min(vyT, 0); speedT = Math.max(speedT, CRUISE); }
     g.vy += (vyT - g.vy) * Math.min(1, dt * 3);
     g.speed += (speedT - g.speed) * Math.min(1, dt * 1.2);
     p[0] += hx * g.speed * dt; p[2] += hz * g.speed * dt; p[1] += g.vy * dt;

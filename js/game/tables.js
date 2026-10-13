@@ -49,7 +49,7 @@ export class Tables {
         await st.loadRow(rows, t);
         rows++;
         ui.counter(rows * t, `boxes on the ship`);
-        st.rowLabel(rows - 1, rows * t, 1.8);
+        st.rowLabel(rows - 1, rows * t);
         audio.countNote(rows - 1);
         say(String(rows * t), { interrupt: true });
         addTally('boxes', t);
