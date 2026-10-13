@@ -4,7 +4,7 @@ import { clamp, damp, wrapAngle } from '../gpu/math.js';
 export const VIEWS = {
   home: { yaw: 0.40, pitch: 0.60, dist: 13.6, target: [-0.05, -0.30, 0.25] },
   ship: { yaw: 0.18, pitch: 0.72, dist: 4.9, target: [-0.98, 0.0, -0.58] },
-  pier: { yaw: 0.05, pitch: 0.78, dist: 3.1, target: [1.63, 0.02, -0.10] },
+  pier: { yaw: -0.10, pitch: 1.02, dist: 2.75, target: [1.63, 0.0, -0.02] },
   sea: { yaw: 0.35, pitch: 0.58, dist: 9.0, target: [-0.3, -0.1, 0.6] },
 };
 

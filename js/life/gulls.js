@@ -237,7 +237,7 @@ export class Gulls {
     const n = Math.min(free.length, 2 + (this.rand() < 0.5 ? 1 : 0));
     for (let i = 0; i < n; i++) {
       const g = free[i];
-      const food = this.plotDive(x + this.rand.range(-0.05, 0.05), z + this.rand.range(-0.05, 0.05));
+      const food = this.plotDive(x + this.rand.range(-0.05, 0.05), z + this.rand.range(-0.05, 0.05), g.pos[0], g.pos[2]);
       if (!food) continue;
       g.food = food;
       g.food.delay = i * this.rand.range(0.6, 1.2);
@@ -253,20 +253,41 @@ export class Gulls {
     }
   }
   // A dive at food: touch point on the water, and the direction to come in from (open water on both sides).
-  plotDive(x, z) {
-    const h = this.hab;
-    let best = null, bs = -1;
-    for (let k = 0; k < 12; k++) {
-      const a = (k / 12) * TWO_PI, dx = Math.cos(a), dz = Math.sin(a);
-      const ok = (px, pz) => h.safeTop(px, pz) < this.scene.sea + 0.25 && Math.abs(px) < B - 0.15 && Math.abs(pz) < B - 0.15;
-      if (!ok(x + dx * 0.32, z + dz * 0.32) || !ok(x + dx * 0.15, z + dz * 0.15) || !ok(x - dx * 0.15, z - dz * 0.15) || !ok(x - dx * 0.32, z - dz * 0.32)) continue;
-      const s = h.wallDist(x + dx * 0.3, z + dz * 0.3) + h.wallDist(x - dx * 0.3, z - dz * 0.3) + this.rand() * 0.05;
-      if (s > bs) { bs = s; best = [dx, dz]; }
+  // The touch point is the food or a spot close by; the gull comes in from S and climbs out the other way.
+  plotDive(x, z, gx = x, gz = z + 1) {
+    const h = this.hab, sea = this.scene.sea;
+    const low = (px, pz, lim) => h.safeTop(px, pz) < sea + lim && Math.abs(px) < B - 0.15 && Math.abs(pz) < B - 0.15 && h.sim.isWater(px, pz);
+    let best = null, bs = -1e9;
+    for (const rad of [0, 0.07, 0.14, 0.2]) {
+      const na = rad === 0 ? 1 : 8;
+      for (let m = 0; m < na; m++) {
+        const tx = x + Math.cos((m / na) * TWO_PI) * rad, tz = z + Math.sin((m / na) * TWO_PI) * rad;
+        if (!low(tx, tz, 0.2)) continue;
+        // which of 16 approach directions are clear, coming in over S and climbing out beyond the touch point
+        const ok = [];
+        for (let k = 0; k < 16; k++) {
+          const a = (k / 16) * TWO_PI, dx = Math.cos(a), dz = Math.sin(a);
+          ok.push(low(tx + dx * 0.15, tz + dz * 0.15, 0.25) && low(tx - dx * 0.15, tz - dz * 0.15, 0.25)
+            && low(tx + dx * 0.32, tz + dz * 0.32, 0.36) && low(tx - dx * 0.32, tz - dz * 0.32, 0.36) && low(tx + dx * 0.48, tz + dz * 0.48, 0.36));
+        }
+        const nOk = ok.filter(Boolean).length;
+        if (!nOk) continue;
+        const gd = Math.hypot(gx - tx, gz - tz) || 1;
+        for (let k = 0; k < 16; k++) {
+          if (!ok[k] || !ok[(k + 1) % 16] || !ok[(k + 15) % 16]) continue;    // the middle of a clear fan
+          const a = (k / 16) * TWO_PI, dx = Math.cos(a), dz = Math.sin(a);
+          // a wide clear fan, near the food, on the side the gull is already coming from
+          const sc = nOk * 0.12 - rad * 4 + 0.6 * ((gx - tx) * dx + (gz - tz) * dz) / gd + this.rand() * 0.05;
+          if (sc > bs) { bs = sc; best = [tx, tz, dx, dz]; }
+        }
+      }
     }
     if (!best) return null;
-    const S = [x + best[0] * 0.3, 0, z + best[1] * 0.3];
-    S[1] = Math.max(0.42, h.safeTop(S[0], S[2]) + 0.1);
-    return { tp: [x, 0, z], S, dir: best, giveUp: 0 };
+    const [tx, tz, dx, dz] = best;
+    // the entry point: out along the clear fan, where the gull lines up for its dive
+    const S = [tx + dx * 0.45, 0, tz + dz * 0.45];
+    S[1] = Math.max(0.42, h.pathTop(S[0], S[2], tx, tz) + 0.08);
+    return { tp: [tx, 0, tz], S, dir: [dx, dz], giveUp: 0, nearT: 0 };
   }
 
   // ---- state changes ----------------------------------------------------------------------------------------------
@@ -307,7 +328,7 @@ export class Gulls {
 
   // ---- flight ------------------------------------------------------------------------------------------------------
   // Free flight toward a horizontal direction and a height, never below the obstacles' safe top (when guarded).
-  fly(g, dt, dx, dz, ty, speedT, guard = true) {
+  fly(g, dt, dx, dz, ty, speedT, guard = true, look = 0.55, maxDown = 0.17) {
     const p = g.pos;
     // keep inside the block
     if (Math.abs(p[0]) > B - 0.35 || Math.abs(p[2]) > B - 0.35) { dx += -p[0] * 0.8; dz += -p[2] * 0.8; }
@@ -319,10 +340,10 @@ export class Gulls {
     let minY = -1;
     if (guard) {
       const h = this.hab;
-      minY = Math.max(h.safeTop(p[0], p[2]), h.safeTop(p[0] + hx * 0.25, p[2] + hz * 0.25), h.safeTop(p[0] + hx * 0.55, p[2] + hz * 0.55)) + 0.06;
+      minY = Math.max(h.safeTop(p[0], p[2]), h.safeTop(p[0] + hx * look * 0.45, p[2] + hz * look * 0.45), h.safeTop(p[0] + hx * look, p[2] + hz * look)) + 0.06;
       if (ty < minY) ty = minY;
     }
-    let vyT = clamp((ty - p[1]) * 1.3, -0.17, 0.22);
+    let vyT = clamp((ty - p[1]) * 1.3, -maxDown, 0.22);
     if (guard && p[1] < minY) { vyT = Math.max(vyT, 0.3); speedT *= 0.55; }
     g.vy += (vyT - g.vy) * Math.min(1, dt * 3);
     g.speed += (speedT - g.speed) * Math.min(1, dt * 1.2);
@@ -342,6 +363,26 @@ export class Gulls {
     if (g.speed < CRUISE * 0.8) flap = Math.max(flap, 0.6);
     g.amt += (flap - g.amt) * Math.min(1, dt * 5);
     g.legs = Math.max(0, g.legs - dt * 1.5);
+  }
+  // Is the straight dive from p down to the touch point tp, and the climb out beyond it, clear of everything?
+  diveClear(p, tp) {
+    const h = this.hab, sea = this.scene.sea;
+    const dx = tp[0] - p[0], dz = tp[2] - p[2], d = Math.hypot(dx, dz) || 1, ux = dx / d, uz = dz / d;
+    for (const k of [0.25, 0.5, 0.75]) {
+      // the dive curve is still high near its start: allow taller things there
+      const y = p[1] + (sea - p[1]) * (k * k * (3 - 2 * k));
+      const st = h.safeTop(p[0] + dx * k, p[2] + dz * k);
+      if (st > sea + 0.17 && st - 0.06 > y) return false;
+    }
+    if (h.safeTop(tp[0] + ux * 0.15, tp[2] + uz * 0.15) > sea + 0.25) return false;
+    if (h.safeTop(tp[0] + ux * 0.32, tp[2] + uz * 0.32) > sea + 0.4) return false;
+    return Math.abs(tp[0] + ux * 0.35) < B - 0.1 && Math.abs(tp[2] + uz * 0.35) < B - 0.1;
+  }
+  // Highest obstacle under a small orbit ring (so the orbit's height clears all of it).
+  ringTop(cx, cz, r) {
+    let m = -1;
+    for (let k = 0; k < 12; k++) { const a = (k / 12) * TWO_PI; m = Math.max(m, this.hab.safeTop(cx + Math.cos(a) * r, cz + Math.sin(a) * r)); }
+    return m;
   }
   circleDir(g, cx, cz, r, dir) {
     const dx = g.pos[0] - cx, dz = g.pos[2] - cz, d = Math.hypot(dx, dz) || 1e-3;
@@ -408,16 +449,18 @@ export class Gulls {
           g.replan -= dt;
           if (g.replan <= 0) { g.replan = 0.6; g.cruiseY = Math.max(A[1], h.pathTop(g.pos[0], g.pos[2], A[0], A[2]) + 0.1); }
           this.fly(g, dt, A[0] - g.pos[0], A[2] - g.pos[2], dist < 0.45 ? A[1] : g.cruiseY, CRUISE);
-          if (dist < 0.2) { g.mode = 'orbit'; g.orbitDir = r() < 0.5 ? 1 : -1; g.timer = 16; }
+          if (dist < 0.2) { g.mode = 'orbit'; g.orbitDir = r() < 0.5 ? 1 : -1; g.timer = 16; g.replan = 0; }
           break;
         }
         case 'orbit': {
           const P = this.perchWorld(g.perch, g.scale), A = this.approachPoint(P);
-          const [dx, dz] = this.circleDir(g, A[0], A[2], 0.15, g.orbitDir);
-          this.fly(g, dt, dx, dz, A[1], CRUISE * 0.85);
+          g.replan -= dt;
+          if (g.replan <= 0) { g.replan = 0.5; g.orbitY = Math.max(A[1], this.ringTop(A[0], A[2], 0.22) + 0.06); }
+          const [dx, dz] = this.circleDir(g, A[0], A[2], 0.2, g.orbitDir);
+          this.fly(g, dt, dx, dz, g.orbitY, CRUISE * 0.85, true, 0.12);
           const tx = P[0] - g.pos[0], tz = P[2] - g.pos[2], d = Math.hypot(tx, tz);
           const off = Math.abs(wrap(Math.atan2(-tz, tx) - g.yaw));
-          if (Math.abs(g.pos[1] - A[1]) < 0.05 && off < 0.6 && d > 0.15 && d < 0.6) {
+          if (Math.abs(g.pos[1] - g.orbitY) < 0.05 && off < 0.6 && d > 0.15 && d < 0.6) {
             g.mode = 'final';
             const pr = g.perch;
             const dist3 = Math.hypot(tx, P[1] - g.pos[1], tz);
@@ -491,17 +534,26 @@ export class Gulls {
           const dist = Math.hypot(S[0] - g.pos[0], S[2] - g.pos[2]);
           g.replan -= dt;
           if (g.replan <= 0) { g.replan = 0.5; g.cruiseY = Math.max(S[1], h.pathTop(g.pos[0], g.pos[2], S[0], S[2]) + 0.1); }
-          if (dist > 0.2) this.fly(g, dt, S[0] - g.pos[0], S[2] - g.pos[2], dist < 0.5 ? S[1] : g.cruiseY, CRUISE * 1.1);
-          else {
-            const [dx, dz] = this.circleDir(g, S[0], S[2], 0.13, g.orbitDir || 1);
-            this.fly(g, dt, dx, dz, S[1], CRUISE * 0.9);
-            const tp = F.tp, tx = tp[0] - g.pos[0], tz = tp[2] - g.pos[2], d = Math.hypot(tx, tz);
+          if (F.orbitY === undefined) F.orbitY = S[1];
+          const tp = F.tp, tx = tp[0] - g.pos[0], tz = tp[2] - g.pos[2], d = Math.hypot(tx, tz);
+          if (!F.near) {
+            this.fly(g, dt, S[0] - g.pos[0], S[2] - g.pos[2], dist < 0.8 ? F.orbitY : g.cruiseY, CRUISE * 1.15, true, 0.55, 0.32);
+            if (dist < 0.25) { F.near = true; F.nearT = 0; }
+          } else {
+            // head for the touch point (turning round if need be), holding the entry height
+            this.fly(g, dt, tx, tz, F.orbitY, CRUISE * 0.95, true, 0.3, 0.3);
+            F.nearT += dt;
+            if (F.nearT > 6) F.near = false;      // could not line up: go round again
+          }
+          {
             const off = Math.abs(wrap(Math.atan2(-tz, tx) - g.yaw));
-            if (Math.abs(g.pos[1] - S[1]) < 0.07 && off < 0.5 && d > 0.12 && d < 0.5) {
+            const yOk = g.pos[1] > F.orbitY - 0.07 && g.pos[1] < F.orbitY + 0.22;
+            if (this.debug && ((F.dbg = (F.dbg || 0) + dt) > 0.5)) { F.dbg = 0; console.log('GULLDBG', g.id, 'pos', g.pos.map(v => v.toFixed(2)).join(','), 'tp', tp[0].toFixed(2), tp[2].toFixed(2), 'S', S.map(v => v.toFixed(2)).join(','), 'oY', F.orbitY.toFixed(2), 'd', d.toFixed(2), 'off', off.toFixed(2), 'yOk', yOk, 'clear', this.diveClear(g.pos, tp), 'near', !!F.near); }
+            if (yOk && off < 0.5 && d > 0.15 && d < 0.8 && this.diveClear(g.pos, tp)) {
               g.mode = 'dive';
               const hx = tx / d, hz = tz / d;
               const tpFn = () => [tp[0], h.surfaceAt(tp[0], tp[2]) + 0.016, tp[2]];
-              this.startCurve(g, tpFn, [hx * 0.14, -0.04, hz * 0.14], clamp(Math.hypot(d, g.pos[1]) / 0.4, 0.9, 1.8));
+              this.startCurve(g, tpFn, [hx * 0.14, -0.04, hz * 0.14], clamp(Math.hypot(d, g.pos[1]) / 0.42, 0.9, 2.0));
               g.diveDir = [hx, hz];
             }
           }

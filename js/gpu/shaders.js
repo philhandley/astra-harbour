@@ -57,9 +57,15 @@ fn jellyBend(p: vec3f) -> vec3f {
 fn jelly(p: vec3f) -> vec3f { return (F.tilt * vec4f(jellyBend(p), 1.0)).xyz; }
 fn jellyN(n: vec3f) -> vec3f { return normalize((F.tilt * vec4f(n, 0.0)).xyz); }
 
+// Integer hash on the lattice point (a sin-based hash falls apart in 32-bit floats for large inputs).
+fn hashU(x: u32) -> u32 {
+  var h = x * 747796405u + 2891336453u;
+  h = ((h >> ((h >> 28u) + 4u)) ^ h) * 277803737u;
+  return (h >> 22u) ^ h;
+}
 fn hash2(p: vec2f) -> f32 {
-  let h = dot(p, vec2f(127.1, 311.7));
-  return fract(sin(h) * 43758.5453);
+  let q = vec2u(vec2i(floor(p)) + vec2i(65536));
+  return f32(hashU(q.x ^ hashU(q.y))) / 4294967295.0;
 }
 fn hash3(p: vec3f) -> f32 { return fract(sin(dot(p, vec3f(12.9898, 78.233, 37.719))) * 43758.5453); }
 fn noise2(p: vec2f) -> f32 {
@@ -127,10 +133,12 @@ export const LIGHTING = /* wgsl */`
 @group(0) @binding(6) var linSamp: sampler;
 
 fn shadowAt(wp: vec3f, n: vec3f) -> f32 {
-  let p = F.lightViewProj * vec4f(wp + n * 0.006, 1.0);
+  let L = normalize(F.lightDir.xyz);
+  let slope = 1.0 - abs(dot(n, L));
+  let p = F.lightViewProj * vec4f(wp + n * (0.006 + 0.014 * slope) + L * 0.003, 1.0);
   let uv = vec2f(p.x * 0.5 + 0.5, 0.5 - p.y * 0.5);
   if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) { return 1.0; }
-  let z = p.z - 0.0015;
+  let z = p.z - 0.0012;
   let ts = 1.0 / 2048.0;
   var s = 0.0;
   for (var y = -1; y <= 1; y++) {
@@ -270,14 +278,15 @@ fn matSurface(mat: u32, base0: vec3f, param: f32, wp: vec3f, lp: vec3f, n0: vec3
       s.n = normalize(n0 + vec3f(f.x, 0.0, f.y) * 0.6 * (1.0 - bump));
       s.rough = 0.75;
     }
-    case 17u: { // strata band (param = band index / 8)
+    case 17u: { // strata band (param = band index / 8): soft candy layers with a fine grain and a few pebbles
       let band = min(u32(param * 8.0 + 0.5), 7u);
       let c = F.strata[band].rgb;
       let horiz = select(wp.x, wp.z, abs(n0.x) > 0.5);
-      let pebble = smoothstep(0.86, 0.93, noise2(vec2f(horiz, wp.y) * 90.0));
-      let grain = noise2(vec2f(horiz * 40.0, wp.y * 300.0));
-      s.base = c * (0.95 + 0.06 * grain) * (1.0 - 0.10 * pebble);
-      s.rough = 0.95;
+      let pebble = smoothstep(0.9, 0.95, noise2(vec2f(horiz, wp.y) * 70.0));
+      let grain = noise2(vec2f(horiz * 30.0, wp.y * 220.0));
+      let wave = 0.5 + 0.5 * sin(horiz * 9.0 + wp.y * 3.0);
+      s.base = c * (0.97 + 0.04 * grain + 0.02 * wave) * (1.0 - 0.07 * pebble);
+      s.rough = 0.95; s.spec = 0.0;
     }
     case 18u: { // slate courses
       let along = dot(lp.xz, normalize(vec2f(-n0.z, n0.x) + vec2f(1e-4)));
@@ -320,7 +329,7 @@ fn lightSurface(sf: Surf, wp: vec3f, bp: vec3f, V: vec3f) -> vec3f {
   var sun = vec3f(1.0, 0.96, 0.90) * 1.3 * max(ndl, 0.0) * sh;
   // underwater: sunlight comes through the surface as caustics and fades with depth
   let sea = F.lightDir.w;
-  if (bp.y < sea + 0.02 && abs(bp.x) < BLOCK_B && abs(bp.z) < BLOCK_B) {
+  if (bp.y < sea + 0.02 && abs(bp.x) < BLOCK_B - 0.01 && abs(bp.z) < BLOCK_B - 0.01) {
     let ter = terAt(bp.xz);
     if (ter.y < 0.5) {
       let wl = sea + simAt(bp.xz).x;
@@ -894,7 +903,10 @@ fn aces(x: vec3f) -> vec3f {
   let d = vec2f(i.uv.x - 0.42, i.uv.y - 0.5);
   m *= 1.0 - 0.08 * dot(d, d);
   var g = pow(m, vec3f(1.0 / 2.2));
-  let n = fract(sin(dot(i.clip.xy + vec2f(P.y * 13.0, P.y * 7.0), vec2f(12.9898, 78.233))) * 43758.5453);
+  let pi = vec2u(i.clip.xy);
+  var h = (pi.x * 1973u + pi.y * 9277u + u32(P.y * 60.0) * 26699u) | 1u;
+  h = h * 747796405u + 2891336453u; h = ((h >> ((h >> 28u) + 4u)) ^ h) * 277803737u; h = (h >> 22u) ^ h;
+  let n = f32(h) / 4294967295.0;
   g += (n - 0.5) / 255.0;
   return vec4f(g, 1.0);
 }

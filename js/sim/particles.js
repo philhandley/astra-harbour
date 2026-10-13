@@ -37,7 +37,7 @@ export class Particles {
   }
   pellets(x, y, z, n = 26) {
     for (let i = 0; i < n; i++) {
-      this.emit({ x: x + rnd(0.02), y, z: z + rnd(0.02), vx: rnd(0.35) - 0.12, vy: 0.25 + Math.random() * 0.3, vz: rnd(0.35) + 0.08,
+      this.emit({ x: x + rnd(0.02), y, z: z + rnd(0.02), vx: -0.22 - Math.random() * 0.3, vy: 0.25 + Math.random() * 0.3, vz: rnd(0.22),
         size: 0.0035, life: 7, col: [150, 98, 52], alpha: 1, kind: 1, g: 2.2, drag: 0.15, tag: 'pellet', float: true });
     }
   }

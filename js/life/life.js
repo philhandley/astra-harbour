@@ -36,13 +36,15 @@ export async function attach(scene, ctx = null) {
   const jellies = new Jellies(scene, hab, makeRand(12), 7);
   const bubbles = new Bubbles(scene, hab, makeRand(13));
   const gulls = new Gulls(scene, hab, api, makeRand(14), { onSplash: (x, z) => fish.scare(x, z, 0.16, 0.7) });
+  if (q && q.get('gulldbg')) gulls.debug = true;
   const pelletFn = api && typeof api.pellets === 'function' ? () => api.pellets() : null;
   // the built-in morsels are drawn only in the dev viewer (the game draws its own pellets as sprites)
   const morselWriter = new InstanceWriter(scene, 'life-pellet', 24, false);
   const drawMorsels = !!q;
   let morsels = [];
   const obstacles = [];
-  let time = 0, hullT = 0;
+  let time = 0, hullT = 0, foodSrc = null;
+  const bites = new WeakMap();
 
   const stats = { n: 0, ms: 0, t: 0 };
   const log = q && q.get('lifelog');
@@ -80,7 +82,11 @@ export async function attach(scene, ctx = null) {
       if (pelletFn) {
         let list = null;
         try { list = pelletFn(); } catch (e) { list = null; }
-        fish.food = (list || []).filter(p => p.landed !== false && p.age < p.life).map(p => ({ x: p.x, y: p.y, z: p.z, alive: true, onEat: () => { p.age = p.life; } }));
+        fish.food = (list || []).filter(p => p.landed !== false && p.age < p.life).map(p => {
+          const w = { x: p.x, y: p.y, z: p.z, alive: true, bites: bites.has(p) ? bites.get(p) : 3, onEat: () => { p.age = p.life; } };
+          return w;
+        });
+        foodSrc = list;
       } else {
         for (const m of morsels) {
           m.t += dt;
@@ -94,6 +100,8 @@ export async function attach(scene, ctx = null) {
       }
       fish.jellies = jellies.obstacles(obstacles);
       fish.update(dt);
+      // remember how many bites each of the game's pellets has left
+      if (pelletFn && foodSrc) { let k = 0; for (const p of foodSrc) if (p.landed !== false && p.age < p.life) { const w = fish.food[k++]; if (w) bites.set(p, w.bites); } }
       jellies.update(dt);
       bubbles.update(dt);
       gulls.update(dt);
@@ -123,10 +131,10 @@ export async function attach(scene, ctx = null) {
       const [fx, fz] = openWater(x, z);
       if (!pelletFn) {
         const r = rand;
-        for (let k = 0; k < 14; k++) {
+        for (let k = 0; k < 16; k++) {
           const a = r.range(0, Math.PI * 2), d = Math.sqrt(r()) * 0.05;
           const px = fx + Math.cos(a) * d, pz = fz + Math.sin(a) * d;
-          morsels.push({ x: px, y: hab.surfaceAt(px, pz) - 0.004, z: pz, alive: true, t: -k * 0.04, life: 7 + r.range(-1, 1), fade: 1 });
+          morsels.push({ x: px, y: hab.surfaceAt(px, pz) - 0.004, z: pz, alive: true, bites: 8, t: -k * 0.04, life: 7 + r.range(-1, 1), fade: 1 });
         }
       }
       fish.startFeeding(fx, fz, fish.time + 7.5);

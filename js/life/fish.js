@@ -198,7 +198,7 @@ export class Fish {
     const f = {
       kind, sp, x, z, y: h.surfaceAt(x, z) - prefDepth, vx: Math.cos(a) * sp.cruise, vy: 0, vz: Math.sin(a) * sp.cruise,
       scale: sp.len * r.range(0.86, 1.14), tint: [...tint, 255], prefDepth, phase: r.range(0, 6.28), yaw: 0, bend: 0, roll: 0, pitch: 0,
-      fright: 0, fx: 0, fy: 0, fz: 0, feeding: 0, school: null, home: null, target: null, wanderT: r.range(0, 3), hover: 0,
+      fright: 0, fx: 0, fy: 0, fz: 0, feeding: 0, nibble: 0, school: null, home: null, target: null, wanderT: r.range(0, 3), hover: 0,
       cruise: sp.cruise * r.range(0.85, 1.15),
     };
     f.yaw = Math.atan2(-f.vz, f.vx);
@@ -220,7 +220,7 @@ export class Fish {
   startFeeding(x, z, until) {
     for (const f of this.fish) {
       const d = Math.hypot(f.x - x, f.z - z);
-      if (d < (f.kind === 'wrasse' ? 0.9 : 1.6)) f.feeding = until + this.rand.range(-0.8, 0.8);
+      if (d < (f.kind === "wrasse" ? 0.9 : 1.3)) f.feeding = until + this.rand.range(-0.8, 0.8);
     }
   }
 
@@ -304,7 +304,13 @@ export class Fish {
           const k = 1.6 / Math.max(d, 0.02);
           ax += (best.x - f.x) * k; ay += (best.y - f.y) * k; az += (best.z - f.z) * k;
           want = Math.min(sp.max * 0.85, 0.06 + d * 0.9);
-          if (d < f.scale * 0.45) { best.alive = false; if (best.onEat) best.onEat(); f.fright = Math.max(f.fright, 0.25); }
+          if (d < f.scale * 0.5 && f.nibble <= 0) {
+            // a nibble: each bit of food takes a few bites, then the fish darts back for a moment
+            best.bites = (best.bites || 1) - 1;
+            if (best.bites <= 0) { best.alive = false; if (best.onEat) best.onEat(); }
+            f.nibble = r.range(1.0, 1.8);
+            f.fx -= (best.x - f.x) / Math.max(d, 0.01) * 0.12; f.fz -= (best.z - f.z) / Math.max(d, 0.01) * 0.12;
+          }
         }
       } else if (f.feeding > 0 && t >= f.feeding) {
         // the food is gone: scatter outwards, then back to normal schooling
@@ -377,6 +383,7 @@ export class Fish {
       }
       const fl = h.floorAt(f.x, f.z) + 0.02, ce = h.ceilingAt(f.x, f.z);
       f.y = ce < fl ? (fl + ce) / 2 : clamp(f.y, fl, ce);
+      if (f.nibble > 0) f.nibble -= dt;
       // decay the fright
       f.fright *= Math.exp(-dt * 0.7);
       const kd = Math.exp(-dt * 2.2);

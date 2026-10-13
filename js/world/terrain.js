@@ -8,9 +8,9 @@ const BANDS = [[-0.95, -0.885], [-0.885, -0.80], [-0.80, -0.715], [-0.715, -0.63
 const FIXED_TOP = -0.545;
 
 export const STRATA_PALETTES = {
-  seaglass: ['#c79f7c', '#e9c9a7', '#f4e8d6', '#f2cfc6', '#f7f0e3', '#ecdfc2', '#f1e8d8', '#86a85c'],
-  blueberry: ['#a98fb4', '#d9c6df', '#f3ebf1', '#c6d3f0', '#f6f2f6', '#e8dcc4', '#efe8ea', '#86a85c'],
-  lime: ['#c0aa76', '#e2d6a2', '#f4f0d6', '#dcebb0', '#f7f4e4', '#ecdfbf', '#f1ebd9', '#86a85c'],
+  seaglass: ['#c4936a', '#eec594', '#f8ecd9', '#f4c1bc', '#fcf4e6', '#f0dfbd', '#f5ead6', '#86a85c'],
+  blueberry: ['#9f83b0', '#dbc3e3', '#f6eef4', '#bfd0f4', '#f8f4f8', '#ebdcc2', '#f1e9ec', '#86a85c'],
+  lime: ['#bba36a', '#e6d79c', '#f7f2d7', '#d8eba6', '#faf6e6', '#eedfbc', '#f3ecd8', '#86a85c'],
 };
 
 export function surfaceAt(x, z) {

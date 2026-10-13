@@ -69,11 +69,21 @@ async function boot() {
     app.life = await life.attach(scene, { perches: () => perches(), hulls: () => app.harbour.hulls() });
   } catch (err) { console.warn('life not loaded', String(err)); }
 
-  app.particles.onLand = p => { if (app.life && p.tag === 'pellet') app.life.feed(p.x, p.z); };
+  // the first pellet to land calls the fish (once per handful)
+  let lastFeed = 0;
+  app.particles.onLand = p => {
+    if (!app.life || p.tag !== 'pellet' || performance.now() - lastFeed < 1500) return;
+    lastFeed = performance.now();
+    app.life.feed(p.x, p.z);
+  };
 
   attachInput(app);
   app.ui.home();
   app.harbour.start();
+  // debug params for screenshots: ?tilt=ax,az holds the block tipped; ?splash=1 drops a few waves; ?view=ship|pier|sea
+  if (q.get('tilt')) { const [ax, az] = q.get('tilt').split(',').map(Number); scene.holdTilt(ax, az); }
+  if (q.get('splash')) { for (const [x, z, a] of [[-0.6, 1.2, 0.05], [0.4, 1.9, -0.04], [-1.8, 0.5, 0.04]]) scene.sim.disturb(x, z, 0.22, a); }
+  if (q.get('view')) scene.camera.go(q.get('view'), true);
   if (q.has('debugvoyage')) { app.harbour.on('workStart', () => setTimeout(() => app.harbour.finishWork(), 500)); }
 
   scene.resize();

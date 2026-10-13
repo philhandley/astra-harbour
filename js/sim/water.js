@@ -202,9 +202,12 @@ export class WaterSim {
       const fx = x - i0, fy = y - j0;
       const a = f[j0 * N + i0], b = f[j0 * N + i1], cc = f[j1 * N + i0], d = f[j1 * N + i1];
       let val = ((a + (b - a) * fx) * (1 - fy) + (cc + (d - cc) * fx) * fy) * decay;
-      // whitecaps where the jelly is pushed into a steep crest
-      const hc = h[k];
-      if (hc > 0.03) val += (hc - 0.03) * 0.9 * dt * 60;
+      // whitecaps where a crest is sharp (a tilted but flat surface makes none)
+      if (i > 0 && j > 0 && i < N - 1 && j < N - 1) {
+        const hc = h[k];
+        const peak = hc - 0.25 * ((S[k - 1] ? hc : h[k - 1]) + (S[k + 1] ? hc : h[k + 1]) + (S[k - N] ? hc : h[k - N]) + (S[k + N] ? hc : h[k + N]));
+        if (peak > 0.0025) val += (peak - 0.0025) * 40 * dt * 60;
+      }
       f2[k] = val > 1.5 ? 1.5 : val;
     }
     this.foam = f2; this.foam2 = f;
