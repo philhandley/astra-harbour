@@ -29,7 +29,7 @@ button { font: inherit; color: inherit; }
 /* ---- masthead ---------------------------------------------------------------------------------------- */
 .masthead { position: fixed; left: 32px; top: 26px; pointer-events: none; max-width: 330px; }
 .eyebrow { font-size: 10.5px; font-weight: 500; letter-spacing: 0.24em; text-transform: uppercase; color: var(--ink-3); }
-.title { font-family: var(--serif); font-style: italic; font-weight: 400; font-size: 64px; line-height: 0.92; letter-spacing: -0.01em; margin: 10px 0 12px; color: var(--ink); }
+.title { font-family: var(--serif); font-style: italic; font-weight: 400; font-size: 64px; line-height: 0.92; letter-spacing: -0.01em; margin: 0 0 12px; color: var(--ink); }
 .title span { display: block; }
 .blurb { font-size: 12.5px; line-height: 1.5; color: var(--ink-2); margin: 0; max-width: 250px; font-weight: 300; }
 

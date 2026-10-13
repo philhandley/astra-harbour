@@ -250,10 +250,11 @@ function shed(mb, rnd) {
     mb.cylinder(x, FY, SZ1 + 0.005, 0.0022, ye - rt - 0.012 - FY, { ...trim, seg: 6, bottom: false });
     mb.beam([x, ye - rt - 0.013, SZ1 + 0.005], [x, ye - rt - 0.004, SZ1 + OVZ + 0.001], 0.004, 0.004, trim);
   }
-  // sign board standing on the front slope (no text: a blue fish between little waves)
+  // sign board standing up on the ridge, just in front of the ventilator (no text: a blue fish between little waves).
+  // The front slope is kept clear for the Gulls on the Roof game, so the gulls stand against plain red.
   {
-    const zs = SZ1 - 0.035, yr = RIDGE_Y - slope * (zs - SCZ);
-    const sy0 = yr + 0.006, sy1 = sy0 + 0.03, sx0 = SCX - 0.155, sx1 = SCX + 0.155, fz1 = zs + 0.004;
+    const zs = SCZ + 0.042, yr = RIDGE_Y - slope * (zs - SCZ);
+    const sy0 = RIDGE_Y + 0.006, sy1 = sy0 + 0.03, sx0 = SCX - 0.155, sx1 = SCX + 0.155, fz1 = zs + 0.004;
     const blue = O(C.signFish), dk = O(0x5a6066, MAT.STEEL);
     mb.boxMM(sx0, sy0, zs, sx1, sy1, fz1, O(C.sign));
     mb.boxMM(sx0 - 0.003, sy0 - 0.003, zs - 0.0005, sx1 + 0.003, sy0, fz1 + 0.0008, blue);

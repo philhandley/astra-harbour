@@ -192,22 +192,21 @@ export function shipSlots(groupSize) {
 export const bayX = i => SHIP.bay0X + i * BOX.pitchX;
 
 // ---- game marks -------------------------------------------------------------------------------------------
-// Gulls on the roof: pegs on the fish shed's ridge (row 1) and along its front eave (row 2), five each side of
-// the ridge vent / the sign, like a ten frame. Heights follow fishquay.js's shed (floor 0.02, walls 0.102, roof 0.05).
+// Gulls on the roof: pegs on the fish shed's front roof slope, so the gulls stand against plain red (the sign is
+// up on the ridge). One row for 10; two rows for 20 (upper row first). Five, a gap, five, like a ten frame.
+// Heights follow fishquay.js's shed (floor 0.02, walls 0.102, roof 0.05).
 const SHED_WY = QUAY_TOP + 0.002 + 0.020 + 0.102;
 const SHED_RIDGE = SHED_WY + 0.05;
 const SHED_CZ = (SHED.z0 + SHED.z1) / 2;
 const SHED_SLOPE = 0.05 / ((SHED.z1 - SHED.z0) / 2 + 0.016);
-const PEG_X = [1.072, 1.128, 1.184, 1.240, 1.296, 1.504, 1.560, 1.616, 1.672, 1.728];
+const PEG_X = [1.101, 1.163, 1.225, 1.287, 1.349, 1.451, 1.513, 1.575, 1.637, 1.699];
 export const PEG_H = 0.008;
-// Peg tops in counting order: ridge left to right, then (for 20) the eave row left to right.
+const roofY = z => SHED_RIDGE - SHED_SLOPE * (z - SHED_CZ);
+// Peg tops in counting order: the upper row left to right, then (for 20) the lower row.
 export function gullPegs(n = 10) {
-  const out = PEG_X.map(x => [x, SHED_RIDGE + 0.004 + PEG_H, SHED_CZ]);
-  if (n > 10) {
-    const z = SHED.z1 + 0.008;
-    const y = SHED_RIDGE - SHED_SLOPE * (z - SHED_CZ);
-    for (const x of PEG_X) out.push([x, y + PEG_H, z]);
-  }
+  const rows = n > 10 ? [-1.212, -1.095] : [-1.165];
+  const out = [];
+  for (const z of rows) for (const x of PEG_X) out.push([x, roofY(z) + PEG_H, z]);
   return out;
 }
 
