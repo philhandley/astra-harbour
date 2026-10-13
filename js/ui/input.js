@@ -105,13 +105,14 @@ export function attachInput(app) {
       const [a, b] = [...pointers.values()];
       const d = Math.hypot(a.x - b.x, a.y - b.y), cx = (a.x + b.x) / 2, cy = (a.y + b.y) / 2;
       if (pinch.d > 0) app.scene.camera.zoom(pinch.d / Math.max(d, 1));
+      app.userCamAt = performance.now();
       app.scene.camera.orbit(-(cx - pinch.cx) * 0.006, (cy - pinch.cy) * 0.004);
       pinch = { d, cx, cy };
       return;
     }
     const dx = e.clientX - last.x, dy = e.clientY - last.y;
     last = { x: e.clientX, y: e.clientY };
-    if (mode === 'orbit') app.scene.camera.orbit(-dx * 0.006, dy * 0.004);
+    if (mode === 'orbit') { app.scene.camera.orbit(-dx * 0.006, dy * 0.004); app.userCamAt = performance.now(); }
     else if (mode === 'wave') {
       const h = hitBlock(rayAt(e));
       if (h && h.kind === 'water') wave(h.point, clamp(Math.hypot(dx, dy) / 10, 0.35, 1.6));
@@ -139,7 +140,7 @@ export function attachInput(app) {
   cv.addEventListener('pointerup', end);
   cv.addEventListener('pointercancel', end);
 
-  cv.addEventListener('wheel', e => { e.preventDefault(); app.scene.camera.zoom(Math.exp(e.deltaY * 0.0012)); }, { passive: false });
+  cv.addEventListener('wheel', e => { e.preventDefault(); app.scene.camera.zoom(Math.exp(e.deltaY * 0.0012)); app.userCamAt = performance.now(); }, { passive: false });
 
   window.addEventListener('keydown', e => {
     if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;

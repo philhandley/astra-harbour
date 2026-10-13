@@ -9,11 +9,11 @@ const W = 0xffffff; // "take the tint"
 const CELL = 0.14;   // neighbour grid cell (>= the widest school radius)
 
 const SPECIES = {
-  mackerel: { tpl: 'life-mackerel', len: 0.045, cruise: 0.11, max: 0.42, depth: [0.035, 0.10], sep: 0.026, R: 0.13, wall: 0.14,
-    tint: 0x1d5c58, tintVar: 8 },
-  herring: { tpl: 'life-herring', len: 0.035, cruise: 0.085, max: 0.36, depth: [0.03, 0.085], sep: 0.021, R: 0.11, wall: 0.12,
-    tint: 0x2b5a82, tintVar: 8 },
-  wrasse: { tpl: 'life-wrasse', len: 0.028, cruise: 0.03, max: 0.26, depth: [0.03, 0.075], sep: 0.02, R: 0, wall: 0.035,
+  mackerel: { tpl: 'life-mackerel', len: 0.054, cruise: 0.11, max: 0.42, depth: [0.035, 0.10], sep: 0.026, R: 0.13, wall: 0.14,
+    tint: 0x2a45a8, tintVar: 10 },
+  herring: { tpl: 'life-herring', len: 0.042, cruise: 0.085, max: 0.36, depth: [0.03, 0.085], sep: 0.021, R: 0.11, wall: 0.12,
+    tint: 0xb9a6e6, tintVar: 10 },
+  wrasse: { tpl: 'life-wrasse', len: 0.034, cruise: 0.03, max: 0.26, depth: [0.03, 0.075], sep: 0.02, R: 0, wall: 0.035,
     tint: 0xee6a22, tintVar: 14 },
 };
 
@@ -229,7 +229,8 @@ export class Fish {
   startFeeding(x, z, until) {
     for (const f of this.fish) {
       const d = Math.hypot(f.x - x, f.z - z);
-      if (d < (f.kind === "wrasse" ? 0.9 : 1.3)) f.feeding = until + this.rand.range(-0.8, 0.8);
+      // every school in the harbour comes to the food (the wrasse only from nearby: they keep to their rocks)
+      if (d < (f.kind === "wrasse" ? 1.6 : 4.5)) f.feeding = until + this.rand.range(-0.8, 0.8);
     }
   }
 
@@ -309,7 +310,7 @@ export class Fish {
         let best = null, bd = 1e9;
         for (const p of food) { const d = (p.x - f.x) ** 2 + (p.z - f.z) ** 2 + (p.y - f.y) ** 2; if (d < bd) { bd = d; best = p; } }
         const d = Math.sqrt(bd);
-        if (d < 1.8) {
+        if (d < 4.5) {
           const k = 1.6 / Math.max(d, 0.02);
           ax += (best.x - f.x) * k; ay += (best.y - f.y) * k; az += (best.z - f.z) * k;
           want = Math.min(sp.max * 0.85, 0.06 + d * 0.9);

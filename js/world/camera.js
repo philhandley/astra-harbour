@@ -6,6 +6,7 @@ export const VIEWS = {
   ship: { yaw: 0.18, pitch: 0.72, dist: 4.9, target: [-0.98, 0.0, -0.58] },
   pier: { yaw: -0.10, pitch: 1.02, dist: 2.75, target: [1.63, 0.0, -0.02] },
   sea: { yaw: 0.35, pitch: 0.58, dist: 9.0, target: [-0.3, -0.1, 0.6] },
+  feed: { yaw: -0.3, pitch: 0.92, dist: 2.6, target: [0.58, -0.06, -0.08] },
 };
 
 export class OrbitCamera {

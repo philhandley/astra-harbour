@@ -7,7 +7,8 @@ export class Particles {
     this.list = [];
     this.f32 = new Float32Array(scene.sprites.data);
     this.u8 = new Uint8Array(scene.sprites.data);
-    this.onLand = null; // (p) => void, for pellets hitting the water
+    this.onLand = null;  // (p) => void, for pellets hitting the water
+    this.onEaten = null; // (p) => void, when a fish takes a pellet (the wildlife sets its age to its life)
   }
   // kind 0: soft puff (steam, smoke), 1: hard droplet / pellet
   emit(p) {
@@ -38,15 +39,17 @@ export class Particles {
   pellets(x, y, z, n = 26) {
     for (let i = 0; i < n; i++) {
       this.emit({ x: x + rnd(0.02), y, z: z + rnd(0.02), vx: -0.22 - Math.random() * 0.3, vy: 0.25 + Math.random() * 0.3, vz: rnd(0.22),
-        size: 0.0035, life: 7, col: [150, 98, 52], alpha: 1, kind: 1, g: 2.2, drag: 0.15, tag: 'pellet', float: true });
+        size: 0.0065, life: 9, col: [214, 142, 66], alpha: 1, kind: 1, g: 2.2, drag: 0.15, tag: 'pellet', float: true });
     }
   }
   update(dt) {
     const sim = this.scene.sim, sea = this.scene.sea;
     const out = [];
     for (const p of this.list) {
+      if (p.tag === 'pellet' && p.landed && p.age >= p.life && !p.expiring) { if (this.onEaten) this.onEaten(p); continue; }
       p.age += dt;
       if (p.age >= p.life) continue;
+      if (p.tag === 'pellet' && p.age > p.life - dt * 1.5) p.expiring = true;
       p.vy -= p.g * dt;
       const d = Math.exp(-p.drag * dt);
       p.vx *= d; p.vz *= d; if (!p.g) p.vy *= d;

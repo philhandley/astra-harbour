@@ -76,9 +76,18 @@ async function boot() {
   // the first pellet to land calls the fish (once per handful)
   let lastFeed = 0;
   app.particles.onLand = p => {
-    if (!app.life || p.tag !== 'pellet' || performance.now() - lastFeed < 1500) return;
+    if (p.tag !== 'pellet') return;
+    scene.sim.disturb(p.x, p.z, 0.03, 0.0012);          // a little plip where each pellet lands
+    if (!app.life || performance.now() - lastFeed < 1500) return;
     lastFeed = performance.now();
     app.life.feed(p.x, p.z);
+  };
+  // a fish snaps a pellet off the surface: a flick of water, a fleck of foam, a droplet or two
+  app.particles.onEaten = p => {
+    scene.sim.disturb(p.x, p.z, 0.035, -0.003);
+    scene.sim.addFoam(p.x, p.z, 0.03, 0.35);
+    app.particles.splash(p.x, scene.sea, p.z, 3, 0.35);
+    app.activity = Math.min(1.2, app.activity + 0.05);
   };
 
   attachInput(app);
@@ -220,7 +229,15 @@ app.horn = (fromShip = false) => {
 app.feed = () => {
   const pe = app.scene.points && app.scene.points.fishquay && app.scene.points.fishquay.pierEnds;
   const p = pe && pe[0] ? pe[0] : [1.0, 0.14, -0.22];
-  app.particles.pellets(p[0] - 0.02, p[1] + 0.03, p[2] + 0.04, 30);
+  app.particles.pellets(p[0] - 0.02, p[1] + 0.03, p[2] + 0.04, 36);
+  // glide over to watch the fish come up, then back again (unless someone has moved the view meanwhile)
+  if (app.mode === 'home') {
+    const cam = app.scene.camera, back = { ...cam.goal, target: cam.goal.target.slice() };
+    cam.go('feed');
+    const at = performance.now();
+    clearTimeout(app.feedTimer);
+    app.feedTimer = setTimeout(() => { if (app.mode === 'home' && (app.userCamAt || 0) < at) cam.go(back); }, 11000);
+  }
   addTally('fed');
   app.activity = Math.min(1.2, app.activity + 0.3);
 };
