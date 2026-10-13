@@ -48,17 +48,17 @@ function softClip(drive = 2.2) {
 }
 function harbourEcho() {
   if (echoBus) return echoBus;
-  const len = Math.floor(ctx.sampleRate * 3.2);
+  const len = Math.floor(ctx.sampleRate * 1.6);
   const ir = ctx.createBuffer(2, len, ctx.sampleRate);
   for (let ch = 0; ch < 2; ch++) {
     const d = ir.getChannelData(ch);
-    for (let i = 0; i < len; i++) { const t = i / ctx.sampleRate; d[i] = (Math.random() * 2 - 1) * Math.pow(1 - t / 3.2, 2.6) * Math.min(1, t / 0.015) * 0.6; }
+    for (let i = 0; i < len; i++) { const t = i / ctx.sampleRate; d[i] = (Math.random() * 2 - 1) * Math.pow(1 - t / 1.6, 3) * Math.min(1, t / 0.015) * 0.6; }
   }
   const conv = ctx.createConvolver(); conv.buffer = ir;
-  const wet = ctx.createGain(); wet.gain.value = 0.32;
+  const wet = ctx.createGain(); wet.gain.value = 0.11;
   const slap = ctx.createDelay(1.0); slap.delayTime.value = 0.42;
   const slapLp = ctx.createBiquadFilter(); slapLp.type = 'lowpass'; slapLp.frequency.value = 700;
-  const slapG = ctx.createGain(); slapG.gain.value = 0.22;
+  const slapG = ctx.createGain(); slapG.gain.value = 0.07;
   const input = ctx.createGain();
   input.connect(conv); conv.connect(wet); wet.connect(master);
   input.connect(slap); slap.connect(slapLp); slapLp.connect(slapG); slapG.connect(master);
@@ -66,9 +66,9 @@ function harbourEcho() {
 }
 
 // opts: f (lower reed pitch in Hz), len (seconds), level
-export function horn(len = 2.6, opts = {}) {
+export function horn(len = 1.4, opts = {}) {
   if (!ready()) return;
-  const f = opts.f || 82.4, level = opts.level || 0.55;
+  const f = opts.f || 130.8, level = opts.level || 0.55;
   const t = ctx.currentTime, end = t + len;
   const hold = Math.max(t + 0.3, end - Math.min(0.45, len * 0.4));   // when the release begins
   // output envelope: a firm start with a slight overshoot, a steady blast, a breathy tail
