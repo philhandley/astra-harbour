@@ -13,6 +13,7 @@ import { Panel, AbortError } from './ui/panel.js';
 import { attachInput } from './ui/input.js';
 import { Tables } from './game/tables.js';
 import { Bonds } from './game/bonds.js';
+import { Gulls } from './game/gulls.js';
 import { P, setting, addTally, suggestLevel } from './game/progress.js';
 import { setVoice } from './game/voice.js';
 import * as audio from './audio.js';
@@ -138,7 +139,11 @@ function perches() {
   for (const name of ['town', 'terminal', 'fishquay', 'breakwater']) {
     const p = pts[name];
     if (!p) continue;
-    for (const v of [...(p.perches || []), ...(p.gallery || [])]) out.push(Array.isArray(v) ? { obj: 0, local: v } : v);
+    for (const v of [...(p.perches || []), ...(p.gallery || [])]) {
+      const pt = Array.isArray(v) ? { obj: 0, local: v } : v;
+      if (app.mode === 'gulls' && !pt.obj && pt.local[0] > 0.95 && pt.local[0] < 1.85 && pt.local[2] < -0.95 && pt.local[2] > -1.65) continue;
+      out.push(pt);
+    }
   }
   if (pts.cranes) for (const v of pts.cranes.perches || []) out.push(v);
   const vs = pts.vessels;
@@ -202,7 +207,7 @@ function loop(now) {
   if (app.paused) { s.camera.update(real); s.time += 0; }
   else s.step(dt);
   s.render();
-  app.stage.update();
+  app.stage.update(dt);
   app.activity = Math.max(0, app.activity - real * 0.25) + (app.cranes.a.busy || app.cranes.b.busy ? real * 0.3 : 0) + app.harbour.ship.speed * real * 2;
   app.activity = Math.min(1.2, app.activity);
   if (++uiTick % 10 === 0) app.ui.refreshHarbour();
@@ -263,22 +268,31 @@ app.resetWorld = () => {
 
 // ---- games ------------------------------------------------------------------------------------------------------
 const TABLE_KEYS = [{ id: '2', label: '×2' }, { id: '5', label: '×5' }, { id: '10', label: '×10' }, { id: 'mix', label: 'Mix' }];
-const BOND_KEYS = [{ id: '10', label: 'Make 10' }, { id: '20', label: 'Make 20' }];
+const BOND_KEYS = [{ id: '10', label: 'Make 10' }, { id: '20', label: 'Make 20' }, { id: '100', label: 'Make 100' }];
+const GULL_KEYS = [{ id: '10', label: '10 gulls' }, { id: '20', label: '20 gulls' }];
+const GAMES = {
+  tables: { title: 'Crane Tables', keys: TABLE_KEYS, def: '2' },
+  bonds: { title: 'Fish Bonds', keys: BOND_KEYS, def: '10' },
+  gulls: { title: 'Gulls on the Roof', keys: GULL_KEYS, def: '10' },
+};
 
 app.startGame = async (kind, key, level) => {
   if (app.game) { app.ui.abort(); app.game.alive = false; }
   const last = P().last[kind] || {};
-  key = key || last.key || (kind === 'tables' ? '2' : '10');
+  key = key || last.key || GAMES[kind].def;
   level = level || suggestLevel(kind, key);
   app.mode = kind;
   document.body.classList.add('in-game');
-  if (kind === 'bonds') app.harbour.holds.add('bonds'); else app.harbour.holds.delete('bonds');
+  // the ship stays at her berth for the fishing-boat bonds (Make 100 uses the ship itself, so not then)
+  if (app.harbour) { if (kind === 'bonds' && key !== '100') app.harbour.holds.add('bonds'); else app.harbour.holds.delete('bonds'); }
+  if (kind !== 'gulls' && app.stage.setGulls) app.stage.setGulls(0);
+  if (app.stage.setLoadLine) app.stage.setLoadLine(null);
   const token = { alive: true };
   app.game = token;
   app.stage.clearLabels();
   app.ui.game({
-    game: kind, title: kind === 'tables' ? 'Crane Tables' : 'Fish Bonds',
-    keys: kind === 'tables' ? TABLE_KEYS : BOND_KEYS, key, level,
+    game: kind, title: GAMES[kind].title,
+    keys: GAMES[kind].keys, key, level,
     onKey: k => app.startGame(kind, k, suggestLevel(kind, k)),
     onLevel: l => app.startGame(kind, key, l),
     onBack: () => app.goHome(),
@@ -292,7 +306,7 @@ app.startGame = async (kind, key, level) => {
   } });
   const view = Object.create(app);
   view.ui = guard(app.ui); view.stage = guard(app.stage);
-  const G = kind === 'tables' ? new Tables(view) : new Bonds(view);
+  const G = kind === 'tables' ? new Tables(view) : kind === 'bonds' ? new Bonds(view) : new Gulls(view);
   try {
     for (;;) {
       const next = await G.run(key, level);
@@ -300,8 +314,8 @@ app.startGame = async (kind, key, level) => {
       if (next === 'home') { app.goHome(); return; }
       // play again: re-open the same game view (the patch card replaced the question card)
       app.ui.game({
-        game: kind, title: kind === 'tables' ? 'Crane Tables' : 'Fish Bonds',
-        keys: kind === 'tables' ? TABLE_KEYS : BOND_KEYS, key, level: suggestLevel(kind, key) > level ? suggestLevel(kind, key) : level,
+        game: kind, title: GAMES[kind].title,
+        keys: GAMES[kind].keys, key, level: suggestLevel(kind, key) > level ? suggestLevel(kind, key) : level,
         onKey: k => app.startGame(kind, k, suggestLevel(kind, k)),
         onLevel: l => app.startGame(kind, key, l),
         onBack: () => app.goHome(),
@@ -323,6 +337,8 @@ app.goHome = () => {
   app.ui.home();
   if (app.flat) return;
   app.harbour.holds.delete('bonds');
+  if (app.stage.setGulls) app.stage.setGulls(0);
+  if (app.stage.setLoadLine) app.stage.setLoadLine(null);
   app.cranes.speed = 1;
   app.scene.camera.go('home');
   // hand the cargo back to the automatic day if the ship is waiting at the berth

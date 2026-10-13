@@ -5,6 +5,7 @@ import { say, stop as stopVoice } from '../game/voice.js';
 
 const SPEAKER = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>';
 const CRANE = '<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 29V9l6-5v25M6 9h22M12 4l16 5M22 9v8"/><rect x="18" y="17" width="8" height="5" rx="1"/></svg>';
+const HORN = '<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13h5l10-6v18l-10-6H5z"/><path d="M24 11c1.5 1.5 1.5 8.5 0 10M27 8c3 3 3 13 0 16"/></svg>';
 const CRATE = '<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="12" width="22" height="13" rx="2"/><path d="M10 12V8h12v4M5 18h22"/></svg>';
 
 export class AbortError extends Error { constructor() { super('aborted'); this.name = 'AbortError'; } }
@@ -33,7 +34,7 @@ export class Panel {
   // ---- home -----------------------------------------------------------------------------------------
   home() {
     const a = this.app, t = P().tally;
-    const starsFor = (game, keys) => keys.flatMap(k => [1, 2, 3].map(l => `<i class="${roundsDone(game, k, l) ? 'on' : ''}"></i>`)).join('');
+    const starsFor = (game, keys) => keys.flatMap(k => LEVELS[game].map(l => `<i class="${roundsDone(game, k, l.id) ? 'on' : ''}"></i>`)).join('');
     this.h(`
       <section class="sec">
         <div class="sec-h"><span class="eyebrow">Play</span><small>with the grown-up</small></div>
@@ -45,7 +46,12 @@ export class Panel {
           </button>
           <button class="game-card" data-go="bonds">
             <div class="icon" style="background:#fdf1e4">${iconFrame()}</div>
-            <div><h3>Fish Bonds</h3><p>Make 10 and make 20</p><div class="stars">${starsFor('bonds', ['10', '20'])}</div></div>
+            <div><h3>Fish Bonds</h3><p>Make 10, 20 and 100</p><div class="stars">${starsFor('bonds', ['10', '20', '100'])}</div></div>
+            <span class="go">→</span>
+          </button>
+          <button class="game-card" data-go="gulls">
+            <div class="icon" style="background:#eef1f5">${iconGulls()}</div>
+            <div><h3>Gulls on the Roof</h3><p>Fly away, make 10 and 20</p><div class="stars">${starsFor('gulls', ['10', '20'])}</div></div>
             <span class="go">→</span>
           </button>
         </div>
@@ -175,11 +181,23 @@ export class Panel {
   big(label, icon = 'crane', style = '') {
     const e = this.$('#qAct');
     if (!e) return Promise.reject(new AbortError());
-    e.innerHTML = `<button class="bigbtn ${style}" id="qBig">${icon === 'crane' ? CRANE : icon === 'crate' ? CRATE : ''}<span>${label}</span></button>`;
+    e.innerHTML = `<button class="bigbtn ${style}" id="qBig">${icon === 'crane' ? CRANE : icon === 'crate' ? CRATE : icon === 'horn' ? HORN : ''}<span>${label}</span></button>`;
     const b = this.$('#qBig');
     return this.wait(done => b.addEventListener('click', () => { if (!b.disabled) done(true); }, { once: true }));
   }
-  bigEnabled(on) { const b = this.$('#qBig'); if (b) b.disabled = !on; }
+  bigEnabled(on) { const b = this.$('#qBig'); if (b) b.disabled = !on; for (const id of ['#qBigA', '#qBigB']) { const x = this.$(id); if (x) x.disabled = !on; } }
+
+  // Two big buttons side by side; resolves 'a' or 'b'. The second can start disabled.
+  two(labelA, iconA, labelB, bOff = false) {
+    const e = this.$('#qAct');
+    if (!e) return Promise.reject(new AbortError());
+    const ic = n => (n === 'crane' ? CRANE : n === 'horn' ? HORN : n === 'crate' ? CRATE : '');
+    e.innerHTML = `<div class="two"><button class="bigbtn" id="qBigA">${ic(iconA)}<span>${labelA}</span></button><button class="bigbtn go" id="qBigB" ${bOff ? 'disabled' : ''}><span>${labelB}</span></button></div>`;
+    return this.wait(done => {
+      this.$('#qBigA').addEventListener('click', e2 => { if (!e2.currentTarget.disabled) done('a'); }, { once: true });
+      this.$('#qBigB').addEventListener('click', e2 => { if (!e2.currentTarget.disabled) done('b'); }, { once: true });
+    });
+  }
 
   // End-of-round patch card; resolves on "Next".
   patch(p, lines, first) {
@@ -208,6 +226,11 @@ function iconRows() {
   const cols = ['#d9402f', '#2f6fd0', '#f0b62e', '#3f9a4f'];
   let s = '';
   for (let r = 0; r < 4; r++) for (let k = 0; k < 3; k++) s += `<span class="box" style="left:${8 + k * 19}px;top:${7 + r * 11}px;background:${cols[r]}"></span>`;
+  return s;
+}
+function iconGulls() {
+  let s = '<span style="position:absolute;left:6px;right:6px;top:30px;height:16px;background:#d2544a;clip-path:polygon(0 100%,8% 0,92% 0,100% 100%)"></span>';
+  for (let k = 0; k < 5; k++) s += `<span style="position:absolute;left:${10 + k * 12}px;top:${18 - (k % 2) * 2}px;width:9px;height:9px;border-radius:50% 50% 40% 40%;background:#fff;box-shadow:0 1px 0 #93a1ad"></span>`;
   return s;
 }
 function iconFrame() {

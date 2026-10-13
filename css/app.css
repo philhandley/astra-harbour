@@ -141,6 +141,8 @@ body.in-game .title { font-size: 40px; }
 .bigbtn[disabled] { opacity: 0.35; }
 .bigbtn svg { width: 30px; height: 30px; }
 .bigbtn.go { background: #2c8f5a; box-shadow: 0 5px 0 #1d6440; }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.two .bigbtn { font-size: 17px; padding: 0 8px; line-height: 1.15; }
 .helprow { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; }
 .help { border: 0; background: none; font-size: 13px; color: var(--ink-2); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; padding: 8px 2px; }
 .dots { display: flex; gap: 5px; }

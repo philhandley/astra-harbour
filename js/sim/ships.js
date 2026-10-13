@@ -332,7 +332,9 @@ export class Harbour {
     const sh = this.ship;
     sh.float.update(sim, sh.x, sh.z, sh.yaw, dt);
     const sq = sh.float.quat(sh.yaw);
-    const shipPos = [sh.x, sea + sh.float.h, sh.z];
+    // the cargo presses her down (the Load-to-the-line game sets sinkTarget)
+    sh.sink = (sh.sink || 0) + ((sh.sinkTarget || 0) - (sh.sink || 0)) * Math.min(1, dt * 2.2);
+    const shipPos = [sh.x, sea + sh.float.h - sh.sink, sh.z];
     sc.setObject(OBJ.SHIP, shipPos, sq);
     sh.propSpin += dt * (2 + sh.prop * 22);
     this.radar += dt * 2.4;

@@ -9,7 +9,7 @@ import { OBJ, LIGHT, flavourUniforms } from './env.js';
 import { OrbitCamera } from './camera.js';
 import { B, BOTTOM, SEA, TIDE } from './layout.js';
 
-export const BUILDERS = ['terminal', 'fishquay', 'town', 'breakwater', 'seabed', 'vessels', 'cranes'];
+export const BUILDERS = ['terminal', 'fishquay', 'town', 'breakwater', 'seabed', 'vessels', 'cranes', 'gamemarks'];
 
 export class Scene {
   static async create(canvas, opts = {}) {

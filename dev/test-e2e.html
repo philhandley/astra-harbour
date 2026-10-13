@@ -24,6 +24,7 @@ const ce = w.console.error.bind(w.console);
 w.console.error = (...a) => { errors.push(a.map(String).join(' ')); ce(...a); };
 const wrongFirst = q.get('wrong') === '1';
 let taps = 0, answers = 0, wrongs = 0, done = false, lastQ = '';
+const lineState = {};
 const seenWrong = new Set();
 const deadline = t0 + Number(q.get('secs') || 280) * 1000;
 while (!done && performance.now() < deadline) {
@@ -43,6 +44,20 @@ while (!done && performance.now() < deadline) {
   }
   const home = d.querySelector('#pHome');
   if (home) { log('patch card:', d.querySelector('.patch h3').textContent, '/', d.querySelector('.patch b').textContent); done = true; break; }
+  // the Load-to-the-line level: two buttons (load / she's full). With wrong=1 it calls full one row early once and
+  // loads one row too many once, to exercise "Not yet" and "Take a row off".
+  const A = d.querySelector('#qBigA'), Bb = d.querySelector('#qBigB');
+  if (A && Bb) {
+    const need = w.__answer, have = w.__rows || 0, k = lastQ + '#' + (w.__order || 0);
+    lineState[k] = lineState[k] || { early: false, over: false };
+    const ls = lineState[k];
+    if (A.disabled && Bb.disabled) continue;
+    if (wrongFirst && !ls.early && have > 0 && have === need - 1 && !Bb.disabled) { ls.early = true; Bb.click(); wrongs++; continue; }
+    if (wrongFirst && !ls.over && have === need && need < 10 && !A.disabled) { ls.over = true; A.click(); taps++; continue; }
+    if (have >= need && !Bb.disabled) { Bb.click(); continue; }
+    if (!A.disabled) { A.click(); taps++; }
+    continue;
+  }
   const big = d.querySelector('#qBig');
   const stopAt = Number(q.get('stop') || 0);
   if (stopAt && taps >= stopAt) { await new Promise(r => setTimeout(r, Number(q.get('hold') || 2600))); log('stopped after', taps, 'taps'); done = true; break; }

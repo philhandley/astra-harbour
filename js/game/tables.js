@@ -2,7 +2,7 @@
 // Level 1 Load: Finn loads rows with the crane while the count goes 5, 10, 15, then says how many.
 // Level 2 Count: an array of rows on the deck; how many boxes?
 // Level 3 Quick: facts, missing numbers and sharing into rows, with Show me.
-import { completeRound, addTally } from './progress.js';
+import { completeRound, addTally, noteFact } from './progress.js';
 import { ask, choices, pickWeighted, sleep, shuffle, cheer, say } from './common.js';
 import * as audio from '../audio.js';
 
@@ -21,10 +21,10 @@ export class Tables {
     let summary;
     if (level === 1) summary = await this.load(pickT());
     else if (level === 2) summary = await this.count(key, pickT);
-    else summary = await this.quick(key, pickT);
+    else if (level === 3) summary = await this.quick(key, pickT);
+    else summary = await this.line(key, pickT);
     const { patch, first } = completeRound('tables', key, level);
     st.voyage();
-    addTally('voyages');
     return ui.patch(patch, summary, first);
   }
 
@@ -80,6 +80,74 @@ export class Tables {
     ui.question(`The ship is full! 10 rows of ${t} make ${10 * t}.`);
     await sleep(1.2);
     return `You loaded ${10 * t} boxes in rows of ${t}.`;
+  }
+
+  // ---- level 4: load to the line ------------------------------------------------------------------------------
+  // An order comes in ("35 boxes"). Finn loads rows and counts in his head (no counter, no labels); the ship sinks as
+  // she loads and sits exactly on her painted load line when the order is right. He says when she is full.
+  async line(key, pickT) {
+    const ui = this.ui, st = this.st;
+    const ORDERS = 4;
+    let last = null, spotOn = 0;
+    ui.dots(0, ORDERS);
+    for (let o = 0; o < ORDERS; o++) {
+      const t = pickT();
+      const n = pickWeighted([3, 4, 5, 6, 7, 8, 9, 10], v => `${t}x${v}`, last);
+      last = n;
+      const target = n * t;
+      ui.sentence(''); ui.feedback(''); ui.clearAct(); ui.help(null);
+      ui.counter('?', 'boxes on the ship');
+      await st.prepTables(t);
+      st.setLoadLine(target);
+      ui.question(`Load <em>${target} boxes</em> in rows of ${t}. Count as you go, and stop when she sits on her line!`, true,
+        `Load ${target} boxes in rows of ${t}. Count as you go, and stop when she sits on her line.`);
+      let rows = 0, first = true;
+      window.__answer = n; window.__rows = 0; window.__order = o; // for the end-to-end test
+      ui.help(() => st.countRows(rows, t, { voice: true }));
+      for (;;) {
+        const pick = await ui.two(rows ? 'Load another row' : 'Load a row', 'crane', "She's full!", rows === 0);
+        if (pick === 'a') {
+          if (rows >= 10) { ui.feedback('There is no room for another row!'); continue; }
+          ui.bigEnabled(false);
+          ui.feedback('');
+          await st.loadRow(rows, t);
+          rows++; window.__rows = rows;
+          audio.countNote(rows - 1);
+          addTally('boxes', t);
+          continue;
+        }
+        const total = rows * t;
+        if (total === target) break;
+        first = false;
+        audio.hmm();
+        if (total < target) {
+          ui.feedback(`Not yet! Her line is still above the water. Keep counting in ${t}s.`);
+          say(`Not yet! Keep counting in ${t}s.`);
+          continue;
+        }
+        ui.feedback('Too many! She is sitting below her line. Take a row off.');
+        say('Too many! Take a row off.');
+        await ui.big('Take a row off', 'crane');
+        ui.bigEnabled(false);
+        rows--; window.__rows = rows;
+        await st.unloadRow(rows);
+        ui.feedback('');
+      }
+      ui.clearAct(); ui.help(null);
+      noteFact(`${t}x${n}`, first);
+      if (first) spotOn++;
+      audio.chime();
+      window.dispatchEvent(new Event('harbour-right'));
+      ui.counter(target, 'boxes on the ship');
+      ui.feedback(`Spot on! She sits right on her line.`, true);
+      await st.countRows(rows, t, { fast: true });
+      ui.sentence(`<span class="eq">${rows} × ${t} = ${target}</span>`);
+      await say(`Spot on! ${rows} rows of ${t} make ${target}.`);
+      ui.dots(o + 1, ORDERS);
+      await sleep(0.6);
+    }
+    st.setLoadLine(null);
+    return `${ORDERS} ships loaded right to the line${spotOn >= 3 ? ', and most of them first time' : ''}.`;
   }
 
   // ---- level 2: count the cargo ---------------------------------------------------------------------------

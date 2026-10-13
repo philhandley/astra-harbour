@@ -25,6 +25,8 @@ class Stage2D {
     this.crates = [];      // { k, colour, t (0..1 hop), remove }
     this.target = 10; this.filled = 0; this.startA = 0;
     this.onSlotTap = null;
+    this.lineTarget = null; this.sink = 0;
+    this.gulls = []; this.gullN = 10;
     this.resize();
     addEventListener('resize', () => this.resize());
     canvas.addEventListener('pointerdown', e => this.tapAt(e.clientX, e.clientY));
@@ -81,13 +83,15 @@ class Stage2D {
     grd.addColorStop(0, '#5fd6c8'); grd.addColorStop(1, '#25b3a6');
     g.fillStyle = grd; g.fill();
     g.strokeStyle = 'rgba(255,255,255,0.8)'; g.lineWidth = 3; g.stroke();
-    if (this.view === 'ship') this.drawShip(g); else this.drawBoats(g);
+    if (this.view === 'ship') this.drawShip(g); else if (this.view === 'gulls') this.drawGulls(g); else this.drawBoats(g);
+    if (this.view === 'ship' && this.lineTarget) this.drawLine(g);
     // labels
     const now = performance.now();
     this.labels = this.labels.filter(l => l.until > now);
     for (const l of this.labels) {
       let x, y;
       if (l.kind === 'row') { const r = this.bayRect(l.i, 5); x = r.x + r.w / 2; y = r.y - 12; }
+      else if (l.kind === 'gull') { const p = this.pegXY(l.i); x = p[0]; y = p[1] - 34; }
       else { const r = this.slotRect(l.i); x = r.x + r.w / 2; y = r.y - 8; }
       g.font = '700 18px Lexend, sans-serif';
       const tw = g.measureText(l.text).width + 18;
@@ -160,9 +164,15 @@ class Stage2D {
   clearLabels() { this.labels = []; }
   update() {}
   async tablesReady() { this.view = 'ship'; }
-  async prepTables() { this.rows = []; await sleep(0.2); }
+  async prepTables(t, colour) { this.rows = []; this.nextColour = colour || null; await sleep(0.2); }
+  setLoadLine(t) { this.lineTarget = t; }
+  boxesAboard() { return this.rows.reduce((n, r) => n + (r ? r.size : 0), 0); }
+  async unloadRow(i) { this.rows[i] = undefined; this.rows.length = i; audio.clunk(0.6); await sleep(0.5); }
+  async clearDeck() { this.rows = []; await sleep(0.2); }
+  async refillStaging() {}
+  horn() { audio.horn(); }
   hintRow() {}
-  async loadRow(i, t) { this.rows[i] = { size: t, colour: GROUP_COLOURS[i % 10], y: 0, glow: 0 }; audio.latch(); await sleep(0.7); audio.clunk(0.8); }
+  async loadRow(i, t) { this.rows[i] = { size: t, colour: this.nextColour || GROUP_COLOURS[i % 10], y: 0, glow: 0 }; audio.latch(); await sleep(0.7); audio.clunk(0.8); }
   rowLabel(i, value, secs = 2) { this.label(value, 'row', i, GROUP_COLOURS[i % 10], secs || 30); }
   async countRows(n, t, opts = {}) {
     this.clearLabels();
@@ -176,10 +186,10 @@ class Stage2D {
     await sleep(opts.fast ? 0.6 : 1.2);
     this.clearLabels();
   }
-  async showRows(n, t) {
+  async showRows(n, t, colour) {
     this.clearLabels();
     const next = [];
-    for (let i = 0; i < n; i++) next[i] = this.rows[i] && this.rows[i].size === t ? this.rows[i] : { size: t, colour: GROUP_COLOURS[i], y: 0.4, glow: 0 };
+    for (let i = 0; i < n; i++) next[i] = this.rows[i] && this.rows[i].size === t && (!colour || this.rows[i].colour === colour) ? this.rows[i] : { size: t, colour: colour || GROUP_COLOURS[i], y: 0.4, glow: 0 };
     this.rows = next;
     await sleep(0.4);
   }
@@ -219,6 +229,88 @@ class Stage2D {
   }
   async toMarket() { for (const c of this.crates) c.remove = true; await sleep(0.4); }
   parade() { audio.toot(); }
+
+  // ---- load to the line: a side view of the ship with her line, sinking as she loads -----------------------------
+  drawLine(g) {
+    const s = this.shipBox();
+    const T = this.lineTarget, b = this.boxesAboard();
+    const want = Math.min(b, T) / T + 1.6 * Math.max(0, b - T) / T;
+    this.sink += (want - this.sink) * 0.1;
+    const x = s.x + s.L * 0.3, w = s.L * 0.4, y0 = s.y + s.B + 40, h = 46;
+    g.fillStyle = '#25b3a6'; g.fillRect(x - 20, y0 + h * 0.55, w + 40, h * 0.6);
+    const off = this.sink * 16;
+    g.fillStyle = '#22355f'; g.fillRect(x, y0 + off, w, h * 0.55);
+    g.fillStyle = '#c23a2f'; g.fillRect(x, y0 + off + h * 0.55, w, h * 0.25);
+    g.fillStyle = '#fff'; g.fillRect(x + w * 0.2, y0 + off + h * 0.55 - 16, w * 0.6, 3);
+    g.beginPath(); g.arc(x + w / 2, y0 + off + h * 0.55 - 14.5, 7, 0, 7); g.strokeStyle = '#fff'; g.lineWidth = 2.5; g.stroke();
+  }
+
+  // ---- gulls on the roof ------------------------------------------------------------------------------------------
+  pegXY(i) {
+    const a = this.area(), w = Math.min(a.w * 0.8, 700);
+    const row = Math.floor(i / 10), j = i % 10;
+    const x0 = a.x + (a.w - w) / 2;
+    const x = x0 + w * (0.06 + j * 0.088 + (j >= 5 ? 0.03 : 0));
+    const y = a.y + a.h * 0.42 + row * 70;
+    return [x, y];
+  }
+  drawGulls(g) {
+    const a = this.area(), w = Math.min(a.w * 0.8, 700), x0 = a.x + (a.w - w) / 2;
+    const rows = this.gullN > 10 ? 2 : 1;
+    g.fillStyle = '#d2544a';
+    g.beginPath(); g.moveTo(x0, a.y + a.h * 0.42 + 6); g.lineTo(x0 + w, a.y + a.h * 0.42 + 6);
+    g.lineTo(x0 + w + 30, a.y + a.h * 0.42 + 70 * rows + 10); g.lineTo(x0 - 30, a.y + a.h * 0.42 + 70 * rows + 10); g.closePath(); g.fill();
+    g.fillStyle = '#7fb3b0'; g.fillRect(x0 - 10, a.y + a.h * 0.42 + 70 * rows + 10, w + 20, 90);
+    for (let i = 0; i < this.gullN; i++) {
+      const [x, y] = this.pegXY(i);
+      g.fillStyle = (i % 10) < 5 ? '#d8402f' : '#f4f1ea';
+      g.beginPath(); g.arc(x, y + 4, 7, 0, 7); g.fill();
+      const gl = this.gulls[i];
+      if (!gl || !gl.on) continue;
+      const t = Math.min(1, gl.t += 0.06);
+      const yy = y - 14 - (1 - t) * 60;
+      g.fillStyle = '#fff'; g.beginPath(); g.ellipse(x, yy, 14, 10, 0, 0, 7); g.fill();
+      g.fillStyle = '#93a1ad'; g.beginPath(); g.ellipse(x, yy - 3, 11, 5, 0, 0, 7); g.fill();
+      g.fillStyle = '#fff'; g.beginPath(); g.arc(x + 9, yy - 9, 6, 0, 7); g.fill();
+      g.fillStyle = '#f0bf2c'; g.beginPath(); g.moveTo(x + 14, yy - 9); g.lineTo(x + 21, yy - 8); g.lineTo(x + 14, yy - 6); g.fill();
+      g.fillStyle = '#222'; g.beginPath(); g.arc(x + 11, yy - 11, 1.4, 0, 7); g.fill();
+    }
+  }
+  async gullsReady(n) { this.view = 'gulls'; this.gullN = n; this.gulls = Array.from({ length: n }, () => ({ on: false, t: 1 })); }
+  async setGulls(count) {
+    if (!this.gulls.length) return;
+    this.gulls.forEach((gl, i) => { const on = i < count; if (on && !gl.on) gl.t = 0; gl.on = on; });
+    await sleep(0.5);
+  }
+  async gullsFlyAway(k) {
+    const on = this.gulls.map((g, i) => (g.on ? i : -1)).filter(i => i >= 0);
+    for (const i of on.slice(on.length - k).reverse()) { this.gulls[i].on = false; await sleep(0.1); }
+    audio.gullCall();
+    await sleep(0.4);
+  }
+  async gullsLand(k, onEach) {
+    let n = 0;
+    for (let i = 0; i < this.gulls.length && n < k; i++) {
+      if (this.gulls[i].on) continue;
+      this.gulls[i].on = true; this.gulls[i].t = 0; n++;
+      if (onEach) onEach(n);
+      await sleep(0.45);
+    }
+  }
+  async countGulls(which, opts = {}) {
+    this.clearLabels();
+    const list = this.gulls.map((g, i) => ((which === 'left') === g.on ? i : -1)).filter(i => i >= 0);
+    for (let k = 0; k < list.length; k++) {
+      this.label(k + 1, 'gull', list[k], which === 'left' ? '#4b5a6b' : '#c9a227', 30);
+      audio.countNote(k);
+      if (opts.voice) say(String(k + 1));
+      await sleep(0.7);
+    }
+    await sleep(1);
+    this.clearLabels();
+  }
+  gullsCount() { return this.gulls.filter(g => g.on).length; }
+  clearGulls() { this.gulls.forEach(g => { g.on = false; }); }
   tapAt(px, py) {
     if (!this.onSlotTap || this.view !== 'boats') return false;
     for (let k = this.filled; k < this.target; k++) {

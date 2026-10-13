@@ -21,6 +21,10 @@ Read `ENGINE.md` first: it is the contract for every model builder and system (c
 - Finn is six: short sentences, big tiles, read-aloud on every question card (speech synthesis, British voice where available).
 - Times tables: rows of containers on the ship's ten bays (a row of 2, a row of 5, or a ten as 5 across in two tiers). Level 1 Load (tap to load rows while the count goes 5, 10, 15), level 2 Count (arrays), level 3 Quick (facts, missing numbers, sharing into rows). Each round ends with a patch and the ship's voyage.
 - Bonds: blue crates already aboard, orange crates added (part-part-whole colours). Level 1 Fill, level 2 More (and take-aways), level 3 Quick pairs. Each round ends with a patch and the boats' parade.
+- Times tables level 4 Line: an order ("35 boxes"), no counter and no labels; Finn loads rows, counts in his head and says when she is full. The ship sinks as she loads and her painted load line (gamemarks.js) sits on the water at exactly the order.
+- Bonds Make 100: rows of ten on the ship (blue aboard, orange added), "60 + 40 = 100, just like 6 + 4 = 10". Uses the cranes, so the ship sails at the end instead of the boats' parade.
+- Gulls on the Roof (bonds to 10 and 20): the game's own gulls on pegs along the fish shed's ridge (and its front eave for 20), red five and white five. Finn sounds the horn; gulls fly off from the right-hand end. Levels Left, Flew, Back. Wild gulls are kept off the shed while it runs.
+- Never show or say an answer just before asking for it (Phil, 13 Oct 2026): e.g. the last row of a Load batch lands as "?".
 - Wrong answers are never punished: the tile is greyed and "Let's count" shows the groups one by one. Never show a score; patches and the harbour log are the only rewards.
 - Finn-only app; copy says "with the grown-up", never assumes Dad.
 
