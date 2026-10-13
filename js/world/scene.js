@@ -16,7 +16,7 @@ export class Scene {
     const s = new Scene();
     s.canvas = canvas;
     s.opts = opts;
-    s.r = await createRenderer(canvas, { onLost: opts.onLost, msaa: opts.msaa, causticGrid: opts.causticGrid });
+    s.r = await createRenderer(canvas, { onLost: opts.onLost, msaa: opts.msaa, causticGrid: opts.causticGrid, simN: opts.simN });
     s.N = s.r.N;
     s.terrain = buildTerrainGrid(s.N);
     s.r.uploadTerrain(s.terrain.data);

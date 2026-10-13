@@ -20,6 +20,9 @@ export class WaterSim {
     this.depth = new Float32Array(n);
     this.out = new Float32Array(n * 4);
     this.setSea(0, terrain.floor);
+    // rows that are all land (the quay and the town) never need simulating
+    this.j0 = 0;
+    for (let j = 0; j < N; j++) { let any = false; for (let i = 0; i < N; i++) if (!this.solid[j * N + i]) { any = true; break; } if (any) { this.j0 = Math.max(0, j - 1); break; } }
     this.g = 1.6;
     this.sigma = 0.0015;      // surface tension (Firmness)
     this.damping = 0.35;      // velocity damping per second (Wave damping)
@@ -129,14 +132,15 @@ export class WaterSim {
     const inv = 1 / c, inv2 = 1 / (c * c);
     const damp = Math.exp(-this.damping * sdt);
     const ax = this.accel[0], az = this.accel[1];
+    const J0 = this.j0, K0 = J0 * N;
     // foam from hulls moving: where the pressure patch grows or shrinks quickly
-    for (let k = 0; k < N * N; k++) {
+    for (let k = K0; k < N * N; k++) {
       const dp = Math.abs(pr[k] - pp[k]);
       if (dp > 0.0006) this.foam[k] = Math.min(1.4, this.foam[k] + dp * 55);
     }
     for (let s = 0; s < subs; s++) {
       // pressure = g * (h + hull) - sigma * laplacian(h)
-      for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+      for (let j = J0; j < N; j++) for (let i = 0; i < N; i++) {
         const k = j * N + i;
         if (S[k]) { P[k] = 0; continue; }
         const hc = h[k];
@@ -147,7 +151,7 @@ export class WaterSim {
         P[k] = g * (hc + pr[k] * 0.9) - sig * g * (hl + hr + hd + hu - 4 * hc) * inv2;
       }
       // velocities
-      for (let j = 0; j < N; j++) {
+      for (let j = J0; j < N; j++) {
         const row = j * (N + 1);
         u[row] = 0; u[row + N] = 0;
         for (let i = 1; i < N; i++) {
@@ -157,13 +161,13 @@ export class WaterSim {
         }
       }
       for (let i = 0; i < N; i++) { v[i] = 0; v[N * N + i] = 0; }
-      for (let j = 1; j < N; j++) for (let i = 0; i < N; i++) {
+      for (let j = Math.max(1, J0); j < N; j++) for (let i = 0; i < N; i++) {
         const k = j * N + i;
         if (S[k] || S[k - N]) { v[k] = 0; continue; }
         v[k] = (v[k] - sdt * ((P[k] - P[k - N]) * inv - az)) * damp;
       }
       // heights
-      for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+      for (let j = J0; j < N; j++) for (let i = 0; i < N; i++) {
         const k = j * N + i;
         if (S[k]) { h[k] = 0; continue; }
         const row = j * (N + 1);
@@ -175,7 +179,7 @@ export class WaterSim {
     }
     // gentle smoothing keeps grid-scale noise down
     let energy = 0;
-    for (let j = 1; j < N - 1; j++) for (let i = 1; i < N - 1; i++) {
+    for (let j = Math.max(1, J0); j < N - 1; j++) for (let i = 1; i < N - 1; i++) {
       const k = j * N + i;
       if (S[k]) continue;
       const nb = (S[k - 1] ? h[k] : h[k - 1]) + (S[k + 1] ? h[k] : h[k + 1]) + (S[k - N] ? h[k] : h[k - N]) + (S[k + N] ? h[k] : h[k + N]);
@@ -191,7 +195,7 @@ export class WaterSim {
     const N = this.N, c = this.cell, f = this.foam, f2 = this.foam2, u = this.u, v = this.v, h = this.h, S = this.solid;
     const decay = Math.exp(-dt * 0.55);
     const k2 = dt / c * 1.6;
-    for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+    for (let j = this.j0; j < N; j++) for (let i = 0; i < N; i++) {
       const k = j * N + i;
       if (S[k]) { f2[k] = 0; continue; }
       const uc = (u[j * (N + 1) + i] + u[j * (N + 1) + i + 1]) * 0.5;
@@ -216,7 +220,7 @@ export class WaterSim {
   // Pack h, u, v, foam for the GPU.
   pack() {
     const N = this.N, o = this.out, h = this.h, u = this.u, v = this.v, f = this.foam;
-    for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+    for (let j = this.j0; j < N; j++) for (let i = 0; i < N; i++) {
       const k = j * N + i, q = k * 4;
       o[q] = h[k];
       o[q + 1] = (u[j * (N + 1) + i] + u[j * (N + 1) + i + 1]) * 0.5;

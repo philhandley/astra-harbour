@@ -158,6 +158,22 @@ export class Habitat {
     }
     return t;
   }
+  // True when a crane's boom, girder or A-frame hangs over (x, z) above height y (a gull there must not climb).
+  overhead(x, z, y) {
+    const o = this.scene.objects;
+    for (const [g, b] of [[OBJ.CRANE_A, OBJ.BOOM_A], [OBJ.CRANE_B, OBJ.BOOM_B]]) {
+      const cx = o[g * 8], cz = o[g * 8 + 2];
+      if (Math.abs(x - cx) > CRANE.legSpanX / 2 + 0.12) continue;
+      const hinge = [cx, o[g * 8 + 1] + CRANE.hingeY, cz];
+      const tip = this.boomTip(b);
+      if (z < cz - CRANE.backreach - 0.05 || z > Math.max(tip[2], cz) + 0.08) continue;
+      // girder height under the point: the backreach is level, the boom runs from the hinge to its tip
+      let top = hinge[1];
+      if (z > cz && tip[2] > cz + 0.01) top = hinge[1] + (tip[1] - hinge[1]) * Math.min(1, (z - cz) / (tip[2] - cz));
+      if (y < top - 0.02) return true;
+    }
+    return false;
+  }
   boomTip(boomObj) {
     const o = this.scene.objects, k = boomObj * 8;
     const q = [o[k + 4], o[k + 5], o[k + 6], o[k + 7]];

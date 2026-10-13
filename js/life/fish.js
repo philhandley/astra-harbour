@@ -184,8 +184,12 @@ export class Fish {
   }
   pickGoal([x0, x1, z0, z1]) {
     const r = this.rand;
+    // now and then swim along just inside the front or right cut face, where the crew can see them side-on
+    const edge = r() < 0.35 ? (r() < 0.65 ? 'front' : 'right') : null;
     for (let k = 0; k < 40; k++) {
-      const x = r.range(x0, x1), z = r.range(z0, z1);
+      let x = r.range(x0, x1), z = r.range(z0, z1);
+      if (edge === 'front' && z1 > 1.6 && k < 20) z = r.range(2.2, 2.4);
+      if (edge === 'right' && x1 > 1.6 && z1 > 1.3 && k < 20) { x = r.range(2.2, 2.4); z = r.range(Math.max(z0, 1.35), z1); }
       if (this.hab.open(x, z, 0.2) && this.hab.surfaceAt(x, z) - this.hab.floorAt(x, z) > 0.12) return [x, z];
     }
     return [(x0 + x1) / 2, Math.max(z0, 0.2)];

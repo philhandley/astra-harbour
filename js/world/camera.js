@@ -16,6 +16,7 @@ export class OrbitCamera {
     this.fov = 0.52;
     this.shiftX = 0; this.shiftY = 0;
     this.gliding = 0;
+    this.distScale = 1;   // portrait screens step back so the whole block fits
   }
   go(view, instant = false) {
     const v = typeof view === 'string' ? VIEWS[view] : view;
@@ -43,7 +44,8 @@ export class OrbitCamera {
   }
   get eye() {
     const cp = Math.cos(this.pitch), sp = Math.sin(this.pitch);
-    return [this.target[0] + this.dist * cp * Math.sin(this.yaw), this.target[1] + this.dist * sp, this.target[2] + this.dist * cp * Math.cos(this.yaw)];
+    const d = this.dist * this.distScale;
+    return [this.target[0] + d * cp * Math.sin(this.yaw), this.target[1] + d * sp, this.target[2] + d * cp * Math.cos(this.yaw)];
   }
   state() { return { eye: this.eye, target: this.target, fov: this.fov, shiftX: this.shiftX, shiftY: this.shiftY }; }
 }

@@ -11,7 +11,8 @@
 //   pellets() -> [{ x, y, z, age, life, landed }]: when given, fish chase these (landed ones) and eat them (sets p.age = p.life)
 //               instead of the built-in invisible morsels that feed() scatters.
 // Dev viewer debug params (ctx is then the page's URLSearchParams):
-//   ?feed=1 feed at the pier end at t = 1.5 s   ?horn=1 horn at t = 2 s   ?scatter=1 a finger stroke at t = 1.5 s
+//   ?feed=1 feed at the pier end at t = 1.5 s   ?horn=1 horn at t = 2 s   ?scatter=1 (or =x,z) a finger stroke at t = 1.5 s
+//   ?follow=N keep the camera on gull N   ?gulldbg=1 log the gulls' dive decisions   ?lifebench=1 time 600 updates at load
 //   ?lifeshow=fish|gull|jelly  a still line-up near the front face (cam=0,0.2,0.75,0,0,2.3)   ?lifelog=1  counts and cost
 import { makeRand } from '../gpu/math.js';
 import { MeshBuilder, MAT } from '../gpu/mesh.js';
@@ -51,10 +52,14 @@ export async function attach(scene, ctx = null) {
   if (log) console.log('LIFE templates', tpls.map(t => `${t.name} ${t.tris}`).join(', '), '| fish', fish.fish.length, 'gulls', gulls.gulls.length, 'jellies', jellies.list.length, 'bubbles', bubbles.list.length);
 
   const show = q && q.get('lifeshow');
+  const follow = q && q.get('follow') !== null ? Number(q.get('follow')) : -1;
   const events = [];
   if (q && q.get('feed')) events.push([1.5, () => life.feed(1.0, -0.2)]);
   if (q && q.get('horn')) events.push([2.0, () => life.horn()]);
-  if (q && q.get('scatter')) for (let k = 0; k < 6; k++) events.push([1.5 + k * 0.08, () => life.scatter(-0.6 + k * 0.08, 1.0, 0.12, 1)]);
+  if (q && q.get('scatter')) {
+    const [sx, sz] = q.get('scatter').includes(',') ? q.get('scatter').split(',').map(Number) : [-0.4, 1.0];
+    for (let k = 0; k < 6; k++) events.push([1.5 + k * 0.08, () => life.scatter(sx - 0.2 + k * 0.08, sz, 0.12, 1)]);
+  }
 
   // A water point near (x, z) for food: out from under the pier deck, in open water.
   function openWater(x, z) {
@@ -106,14 +111,21 @@ export async function attach(scene, ctx = null) {
       bubbles.update(dt);
       gulls.update(dt);
       packMorsels(dt);
+      if (follow >= 0 && gulls.gulls[follow]) {
+        // dev: keep the camera on one gull
+        const c = scene.camera, p = gulls.gulls[follow].pos;
+        c.go({ yaw: c.goal.yaw, pitch: c.goal.pitch, dist: c.goal.dist, target: [p[0], p[1], p[2]] }, true);
+      }
       if (log) {
         stats.n++; stats.ms += performance.now() - t0; stats.t += dt;
+        checkRules();
         if (stats.t > 2) {
           const modes = {};
           for (const g of gulls.gulls) modes[g.mode] = (modes[g.mode] || 0) + 1;
-          console.log('LIFE update', (stats.ms / stats.n).toFixed(3), 'ms', JSON.stringify(modes), 'feeding', fish.fish.filter(f => f.feeding > fish.time).length, 'food', fish.food.filter(f => f.alive).length,
+          console.log('LIFE update', (stats.ms / stats.n).toFixed(3), 'ms', JSON.stringify(modes), 'feeding', fish.fish.filter(f => f.feeding > fish.time).length, 'food', fish.food.filter(f => f.alive).length, 'scared', fish.fish.filter(f => f.fright > 0.2).length,
             'schools', fish.schools.map(s => `${s.kind[0]}(${s.cx.toFixed(2)},${s.cz.toFixed(2)})`).join(' '),
             'gulls', gulls.gulls.map(g => `${g.mode[0]}(${g.pos.map(v => v.toFixed(2)).join(',')})`).join(' '));
+          console.log('LIFE rules', JSON.stringify(bad));
           stats.n = 0; stats.ms = 0; stats.t = 0;
         }
       }
@@ -144,6 +156,25 @@ export async function attach(scene, ctx = null) {
     // for tests and the dev viewer
     get fish() { return fish; }, get gulls() { return gulls; }, get jellies() { return jellies; }, get bubbles() { return bubbles; }, hab,
   };
+
+  // dev checks (with ?lifelog): fish where they must never be, jellies near hulls, gulls below the safe height
+  const bad = { fishHull: 0, fishLand: 0, fishRock: 0, fishOut: 0, fishAir: 0, jellyHull: 0, gullLow: 0, worstGull: 0 };
+  function checkRules() {
+    const sea = scene.sea, tmp = [0, 0];
+    for (const f of fish.fish) {
+      if (f.z < -0.70) bad.fishLand++;
+      if (Math.abs(f.x) > 2.55 || Math.abs(f.z) > 2.55) bad.fishOut++;
+      if (f.y < hab.floorAt(f.x, f.z) + 0.005) bad.fishRock++;
+      if (f.y > hab.surfaceAt(f.x, f.z) - 0.01) bad.fishAir++;
+      for (const h of hab.hulls) if (hab.hullAway(h, f.x, f.z, tmp) <= 0 && f.y > sea - h.draft - 0.005) bad.fishHull++;
+    }
+    for (const j of jellies.list) for (const h of hab.hulls) if (hab.hullAway(h, j.x, j.z, tmp) <= 0.02 && j.y > sea - h.draft - 0.05) bad.jellyHull++;
+    for (const g of gulls.gulls) {
+      if (!['circle', 'transit', 'orbit', 'toFood'].includes(g.mode)) continue;
+      const under = hab.safeTop(g.pos[0], g.pos[2]) - g.pos[1];
+      if (under > 0.03) { bad.gullLow++; bad.worstGull = Math.max(bad.worstGull, +under.toFixed(3)); }
+    }
+  }
 
   function packMorsels(dt) {
     morselWriter.begin();

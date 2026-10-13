@@ -36,7 +36,7 @@ async function boot() {
   let scene;
   try {
     const low = q.get('q') === 'low' || (navigator.hardwareConcurrency || 8) <= 4;
-    scene = await Scene.create(canvas, { reducedMotion: reduced, causticGrid: low ? 130 : 200, onLost: () => showFallback('The graphics card stopped answering.') });
+    scene = await Scene.create(canvas, { reducedMotion: reduced, causticGrid: low ? 130 : 200, simN: low ? 96 : 128, onLost: () => showFallback('The graphics card stopped answering.') });
     if (low) scene.renderScale = 0.8;
   } catch (err) {
     console.warn('WebGPU unavailable:', String(err));
@@ -96,7 +96,12 @@ async function boot() {
   if (q.get('shot')) {
     const frames = Number(q.get('frames') || 90);
     let n = 0;
-    const tick = () => { if (++n >= frames) { console.log('HARBOUR frames', n, scene.r.errors.length ? 'GPU errors: ' + scene.r.errors.slice(0, 3).join(' | ') : 'no gpu errors'); import('../dev/shotkit.js').then(m => setTimeout(m.shotReady, 60)); } else requestAnimationFrame(tick); };
+    const times = [];
+    const tick = (t) => { times.push(t); if (++n >= frames) {
+      const d = times.slice(-121).map((v, i, a) => (i ? v - a[i - 1] : 0)).slice(1).sort((a, b) => a - b);
+      const t0 = performance.now(); for (let i = 0; i < 30; i++) scene.sim.step(1 / 60);
+      console.log('HARBOUR perf: median frame', d[d.length >> 1].toFixed(1), 'ms, p90', d[Math.floor(d.length * 0.9)].toFixed(1), 'ms, sim step', ((performance.now() - t0) / 30).toFixed(2), 'ms, canvas', scene.canvas.width + 'x' + scene.canvas.height, 'scale', (scene.renderScale || 1).toFixed(2));
+      console.log('HARBOUR frames', n, scene.r.errors.length ? 'GPU errors: ' + scene.r.errors.slice(0, 3).join(' | ') : 'no gpu errors'); import('../dev/shotkit.js').then(m => setTimeout(m.shotReady, 60)); } else requestAnimationFrame(tick); };
     requestAnimationFrame(tick);
   }
 }
@@ -123,11 +128,13 @@ function perches() {
 
 // Keep the harbour centred in the space left of the panel.
 function layoutShift() {
-  const w = innerWidth;
-  const narrow = w <= 760;
-  const panelW = narrow ? 0 : 344 + 32;
+  const w = innerWidth, h = innerHeight;
+  const sheet = w <= 760 || (h > w && w <= 1000);
+  const panelW = sheet ? 0 : 344 + 32;
   app.scene.camera.shiftX = panelW / w;
-  app.scene.camera.shiftY = narrow ? -0.18 : 0;
+  app.scene.camera.shiftY = sheet ? -0.42 : 0;
+  // a tall canvas has a narrow horizontal view: step back so the block's width still fits
+  app.scene.camera.distScale = sheet ? Math.min(2.4, Math.max(1, 1.1 / (w / h))) : 1;
 }
 
 // ---- the loop ---------------------------------------------------------------------------------------------------

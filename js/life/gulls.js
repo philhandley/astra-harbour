@@ -196,6 +196,9 @@ export class Gulls {
     for (const p of list) {
       if (this.reserved.has(p.key)) continue;
       const w = this.perchWorld(p, g.scale);
+      // nothing hanging over it (a crane boom over the ship's mast), and a short glide in from the approach point
+      if (this.hab.overhead(w[0], w[2], w[1] + 0.05)) continue;
+      if (this.approachPoint(w)[1] - w[1] > 0.45) continue;
       const d = Math.hypot(w[0] - g.pos[0], w[2] - g.pos[2]);
       const score = r() / (0.6 + d);
       if (score > bw) { bw = score; best = p; }
@@ -345,6 +348,12 @@ export class Gulls {
     }
     let vyT = clamp((ty - p[1]) * 1.3, -maxDown, 0.22);
     if (guard && p[1] < minY) { vyT = Math.max(vyT, 0.3); speedT *= 0.55; }
+    if (this.hab.overhead(p[0], p[2], p[1] + 0.06)) {
+      // under a crane boom: never climb into it, slip out seaward first
+      vyT = Math.min(vyT, 0); speedT = Math.max(speedT, CRUISE);
+      const yawOut = Math.atan2(-1, 0);
+      g.yaw = wrap(g.yaw + clamp(wrap(yawOut - g.yaw), -2 * dt, 2 * dt));
+    }
     g.vy += (vyT - g.vy) * Math.min(1, dt * 3);
     g.speed += (speedT - g.speed) * Math.min(1, dt * 1.2);
     p[0] += hx * g.speed * dt; p[2] += hz * g.speed * dt; p[1] += g.vy * dt;
@@ -495,6 +504,8 @@ export class Gulls {
             g.head += (g.headTarget - g.head) * Math.min(1, dt * 9);
             g.timer -= dt;
             if (g.timer <= 0) this.takeoff(g, 0);
+            // a crane swinging over the perch makes it leave
+            else if (g.perch.obj && (g.lookUp = (g.lookUp || 0) - dt) <= 0) { g.lookUp = 0.5; if (h.overhead(P[0], P[2], P[1] + 0.05)) this.takeoff(g, 0); }
           } else {
             g.head += (0 - g.head) * Math.min(1, dt * 10);
             g.timer -= dt;

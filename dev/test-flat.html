@@ -1,0 +1,31 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Flat harbour test</title>
+<style>body{margin:0}iframe{width:1280px;height:800px;border:0;display:block}</style>
+<iframe id="f" src="../index.html?flat=1&nosw=1"></iframe>
+<script type="module">
+// Opens the flat (no-WebGPU) harbour, starts a times-tables round and a bonds round, and checks for errors.
+import { shotReady } from './shotkit.js';
+const q = new URLSearchParams(location.search);
+const f = document.getElementById('f');
+await new Promise(r => f.addEventListener('load', r, { once: true }));
+const w = f.contentWindow, d = () => w.document;
+const errs = [];
+w.addEventListener('error', e => errs.push(String(e.message)));
+const wait = s => new Promise(r => setTimeout(r, s * 1000));
+await wait(1);
+d().getElementById('fallbackGo').click();
+await wait(1);
+const game = q.get('game') || 'tables';
+d().querySelector(`[data-go="${game}"]`).click();
+// tap through a few steps
+for (let i = 0; i < 60; i++) {
+  await wait(0.35);
+  const big = d().querySelector('#qBig');
+  if (big && !big.disabled) { big.click(); continue; }
+  const tiles = [...d().querySelectorAll('.tile:not(.nope)')];
+  if (tiles.length && w.__answer !== undefined && i > 40) { const t = tiles.find(t => t.dataset.v === String(w.__answer)); if (t) t.click(); }
+}
+console.log('FLAT question:', d().querySelector('#qText') && d().querySelector('#qText').textContent, 'errors:', errs.length ? errs.join(' | ') : 'none');
+shotReady();
+</script>
