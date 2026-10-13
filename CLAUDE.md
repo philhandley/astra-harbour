@@ -41,4 +41,6 @@ Read `ENGINE.md` first: it is the contract for every model builder and system (c
 ## Publish
 Own repo `philhandley/astra-harbour` (created 13 Oct 2026), GitHub Pages from main root, live at https://philhandley.github.io/astra-harbour/. To update: `python tools/build_sw.py`, commit, `git push`; Pages redeploys in about a minute.
 
+Sharpness on tablets: `adaptQuality` in js/main.js lowers the drawing resolution only when the median frame is over 34 ms, never below 1 drawn pixel per screen point on a sharp screen, and steps back up when frames are fast. Tap the WebGPU pill to see the drawn pixel ratio, fps and GPU. `?q=high` turns the adjustment off.
+
 Keep the Install button (`js/ui/install.js`, plus the inline `beforeinstallprompt` catcher in index.html). Every Astra app shares philhandley.github.io, and on Android Chrome's menu install sheet says "This app is already installed" for any page on an origin that has any installed app, then "Could not open app". The page's own install offer checks this app's address, so the button still installs it.

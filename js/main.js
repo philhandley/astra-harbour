@@ -46,6 +46,8 @@ async function boot() {
     return;
   }
   app.scene = scene;
+  perf.start = scene.renderScale || 1;
+  pillInfo();
   scene.setFlavour('seaglass');
   app.setFirmness(1);
   placeDefaults(scene);
@@ -170,21 +172,42 @@ function layoutShift() {
 
 // ---- the loop ---------------------------------------------------------------------------------------------------
 let last = performance.now(), uiTick = 0, smokeT = 0;
-const perf = { n: 0, sum: 0, steps: 0, skip: 60 };
-// If frames run slow (a tablet's GPU), draw at a lower resolution: up to three steps down.
+const perf = { times: [], skip: 120, ups: 0, fps: 0, start: 1 };
+// If frames run slow (a tablet's GPU), draw at a lower resolution, and step back up when there is room again.
+// Judged on the median frame, so hitches (shaders compiling at start, a tab switch) don't count, and never below
+// one drawn pixel per screen point on a sharp screen: below that the harbour looks smeared.
+function renderDpr() { return Math.min(devicePixelRatio || 1, app.scene.opts.maxDpr || 1.5) * (app.scene.renderScale || 1); }
 function adaptQuality(frameS) {
-  if (q.get('q') === 'high' || perf.steps >= 3) return;
   if (perf.skip > 0) { perf.skip--; return; }
-  perf.n++; perf.sum += frameS;
-  if (perf.n < 90) return;
-  const avg = perf.sum / perf.n;
-  perf.n = 0; perf.sum = 0;
-  if (avg > 0.026) {
-    perf.steps++; perf.skip = 30;
-    app.scene.renderScale = (app.scene.renderScale || 1) * 0.8;
-    app.scene.resize();
-    console.log('HARBOUR quality step', perf.steps, 'avg frame', (avg * 1000).toFixed(1), 'ms, scale', app.scene.renderScale.toFixed(2));
-  }
+  perf.times.push(frameS);
+  if (perf.times.length < 90) return;
+  const med = perf.times.sort((a, b) => a - b)[45];
+  perf.times = [];
+  perf.fps = Math.round(1 / med);
+  if (q.get('q') === 'high') return;
+  const s = app.scene, scale = s.renderScale || 1;
+  const floor = (devicePixelRatio || 1) > 1 ? 1 : 0.8;
+  let next = scale;
+  if (med > 0.034 && renderDpr() * 0.85 >= floor - 1e-6) next = scale * 0.85;
+  else if (med < 0.019 && scale < perf.start && perf.ups < 2) { next = Math.min(perf.start, scale / 0.85); perf.ups++; }
+  if (next === scale) return;
+  s.renderScale = next;
+  s.resize();
+  perf.skip = 30;
+  console.log('HARBOUR quality', 'median frame', (med * 1000).toFixed(1), 'ms, scale', next.toFixed(2), 'dpr', renderDpr().toFixed(2));
+}
+// Tap the "WebGPU · Live" pill to see how sharp the harbour is drawn and how fast it runs.
+function pillInfo() {
+  const pill = document.getElementById('pill'), span = pill.querySelector('span');
+  const plain = span.textContent;
+  let on = false, timer = 0;
+  const gpu = (() => { try { const i = app.scene.r.adapter.info || {}; return [i.vendor, i.architecture].filter(Boolean).join(' '); } catch (e) { return ''; } })();
+  const show = () => { span.textContent = `${renderDpr().toFixed(2)}× of ${(devicePixelRatio || 1).toFixed(2)} · ${perf.fps || '…'} fps${gpu ? ' · ' + gpu : ''}`; };
+  pill.addEventListener('click', () => {
+    on = !on;
+    clearInterval(timer);
+    if (on) { show(); timer = setInterval(show, 1000); } else span.textContent = plain;
+  });
 }
 function loop(now) {
   requestAnimationFrame(loop);
