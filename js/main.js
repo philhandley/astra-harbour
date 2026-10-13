@@ -238,6 +238,7 @@ app.startGame = async (kind, key, level) => {
   level = level || suggestLevel(kind, key);
   app.mode = kind;
   document.body.classList.add('in-game');
+  if (kind === 'bonds') app.harbour.holds.add('bonds'); else app.harbour.holds.delete('bonds');
   const token = { alive: true };
   app.game = token;
   app.stage.clearLabels();
@@ -287,6 +288,7 @@ app.goHome = () => {
   document.body.classList.remove('in-game');
   app.ui.home();
   if (app.flat) return;
+  app.harbour.holds.delete('bonds');
   app.cranes.speed = 1;
   app.scene.camera.go('home');
   // hand the cargo back to the automatic day if the ship is waiting at the berth

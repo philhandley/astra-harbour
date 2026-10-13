@@ -341,19 +341,35 @@ export class Gulls {
     if (under) { dx = 0; dz = 1; }
     // keep inside the block
     if (Math.abs(p[0]) > B - 0.35 || Math.abs(p[2]) > B - 0.35) { dx += -p[0] * 0.8; dz += -p[2] * 0.8; }
+    let minY = -1;
+    if (guard) {
+      const h = this.hab, hx0 = Math.cos(g.yaw), hz0 = -Math.sin(g.yaw);
+      const a = look * 0.45, sd = 0.08;   // ahead, and a little to each side (for edges it runs alongside)
+      minY = Math.max(h.safeTop(p[0], p[2]), h.safeTop(p[0] + hx0 * a, p[2] + hz0 * a), h.safeTop(p[0] + hx0 * look, p[2] + hz0 * look),
+        h.safeTop(p[0] + hx0 * a - hz0 * sd, p[2] + hz0 * a + hx0 * sd), h.safeTop(p[0] + hx0 * a + hz0 * sd, p[2] + hz0 * a - hx0 * sd)) + 0.06;
+      // low down (after a take-off), look further ahead: there is more to clear
+      if (p[1] < 1.0 && look > 0.4) minY = Math.max(minY, h.safeTop(p[0] + hx0 * look * 1.7, p[2] + hz0 * look * 1.7) + 0.06);
+      if (minY - p[1] > 0.08 && !under) {
+        // too low for what lies ahead: turn toward the lowest ground while climbing
+        const dl = Math.hypot(dx, dz) || 1;
+        let best = Infinity, bx = dx, bz = dz;
+        for (let k = 0; k < 8; k++) {
+          const a = (k / 8) * TWO_PI, ux = Math.cos(a), uz = Math.sin(a);
+          const st = Math.max(h.safeTop(p[0] + ux * 0.3, p[2] + uz * 0.3), h.safeTop(p[0] + ux * 0.6, p[2] + uz * 0.6)) - 0.03 * (ux * dx + uz * dz) / dl;
+          if (st < best) { best = st; bx = ux; bz = uz; }
+        }
+        dx = bx; dz = bz;
+      }
+      if (ty < minY) ty = minY;
+    }
     const want = Math.atan2(-dz, dx);
     const rate = clamp(wrap(want - g.yaw) * 2.0, -1.7, 1.7);
     g.yawRate += (rate - g.yawRate) * Math.min(1, dt * 5);
     g.yaw = wrap(g.yaw + g.yawRate * dt);
     const hx = Math.cos(g.yaw), hz = -Math.sin(g.yaw);
-    let minY = -1;
-    if (guard) {
-      const h = this.hab;
-      minY = Math.max(h.safeTop(p[0], p[2]), h.safeTop(p[0] + hx * look * 0.45, p[2] + hz * look * 0.45), h.safeTop(p[0] + hx * look, p[2] + hz * look)) + 0.06;
-      if (ty < minY) ty = minY;
-    }
     let vyT = clamp((ty - p[1]) * 1.3, -maxDown, 0.22);
-    if (guard && p[1] < minY) { vyT = Math.max(vyT, 0.3); speedT *= 0.55; }
+    // below the safe height: climb steeply, barely moving forward
+    if (guard && p[1] < minY) { vyT = Math.max(vyT, 0.32); speedT *= clamp(1 - (minY - p[1]) * 4, 0.3, 0.6); }
     if (under) { vyT = Math.min(vyT, 0); speedT = Math.max(speedT, CRUISE); }
     g.vy += (vyT - g.vy) * Math.min(1, dt * 3);
     g.speed += (speedT - g.speed) * Math.min(1, dt * 1.2);

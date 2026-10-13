@@ -43,7 +43,7 @@ export class Harbour {
     this.voyages = 0;
     this.listeners = {};
     this.workDone = false;      // set by whoever runs the cargo work (the auto worker or a game) to let her sail
-    this.hold = false;          // true while something (the fishing boats' parade) needs the ship to stay put
+    this.holds = new Set();     // reasons the ship must stay at her berth (the boats' parade, the bonds game)
     this.paused = false;
     // other floats
     this.yachts = YACHT_MOOR.map((m, i) => ({ id: i ? OBJ.YACHT_2 : OBJ.YACHT_1, buoy: m, ang: i ? 2.4 : 0.6, yaw: 0, float: new Floater(0.13, 0.045, { k: 30, c: 5, maxTilt: 0.16 }) }));
@@ -93,7 +93,7 @@ export class Harbour {
       this.workDone = false;
       this.setPhase('work');
       this.emit('workStart');
-      yield waitUntil(() => this.workDone && !this.hold);
+      yield waitUntil(() => this.workDone && this.holds.size === 0);
       yield* this.departure();
       yield* this.voyage();
       yield* this.arrival();
@@ -282,7 +282,7 @@ export class Harbour {
   boatParade() {
     if (this.boatsAway) return;
     this.boatsAway = true;
-    this.hold = true;
+    this.holds.add('parade');
     const [A, Bt] = this.boats;
     const out = (b, x0) => [
       { x: b.home.x, z: b.home.z, yaw: 0 },
@@ -308,14 +308,14 @@ export class Harbour {
       yield waitUntil(() => self.atBerth && !self.tugBusy);
       yield waitTime(delay);
       b.away = true;
-      yield* self.vesselRoute(b, out(b, b.home.x), 0.22);
+      yield* self.vesselRoute(b, out(b, b.home.x), 0.3);
       Object.assign(b, { x: b.home.x, z: b.home.z, yaw: b.home.yaw });
       b.away = false;
     };
     // the west boat leads out and home again, so neither has to pass the other near the pier
     const ha = this.dir.run(run(A, 0), 'boatA');
-    const hb = this.dir.run(run(Bt, 6.5), 'boatB');
-    Promise.all([ha.promise, hb.promise]).then(() => { this.boatsAway = false; this.hold = false; });
+    const hb = this.dir.run(run(Bt, 5.0), 'boatB');
+    Promise.all([ha.promise, hb.promise]).then(() => { this.boatsAway = false; this.holds.delete('parade'); });
   }
 
   horn() { this.emit('horn'); }
