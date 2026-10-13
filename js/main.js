@@ -60,8 +60,10 @@ async function boot() {
 
   // sounds and tallies from the cranes and the ship
   app.cranes.onLatch = () => audio.latch();
-  app.cranes.onLand = (c, g) => { audio.clunk(g.size === 10 ? 1.2 : 0.9); if (app.mode !== 'tables') addTally('boxes', g.size); app.activity = Math.min(1.5, app.activity + 0.25); };
+  app.cranes.onLand = (c, g) => { audio.clunk(g.size === 10 ? 1.2 : 0.9); if (!reduced) scene.poke(0, 0, -0.08); if (app.mode !== 'tables') addTally('boxes', g.size); app.activity = Math.min(1.5, app.activity + 0.25); };
   app.harbour.on('workStart', () => { if (app.mode !== 'tables') app.autowork.run(app.harbour); });
+  // the jelly wobbles happily at a right answer, and squashes a little when a row lands
+  addEventListener('harbour-right', () => { if (!reduced) scene.poke((Math.random() - 0.5) * 0.5, (Math.random() - 0.5) * 0.5, -0.35); });
   app.harbour.on('horn', () => { app.horn(true); addTally('voyages'); });
 
   // wildlife, if it has been built

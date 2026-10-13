@@ -30,6 +30,7 @@ export async function ask(ui, ans, opts, factId, onWrong) {
     if (v === ans) {
       ui.markTile(v, 'right');
       audio.chime();
+      window.dispatchEvent(new Event('harbour-right'));
       noteFact(factId, first);
       return first;
     }
