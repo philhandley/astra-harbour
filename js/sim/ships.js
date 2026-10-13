@@ -42,8 +42,8 @@ export class Harbour {
     this.radar = 0;
     this.voyages = 0;
     this.listeners = {};
-    this.work = null;           // async () => void, set by the auto worker or the game
-    this.castOffRequested = false;
+    this.workDone = false;      // set by whoever runs the cargo work (the auto worker or a game) to let her sail
+    this.hold = false;          // true while something (the fishing boats' parade) needs the ship to stay put
     this.paused = false;
     // other floats
     this.yachts = YACHT_MOOR.map((m, i) => ({ id: i ? OBJ.YACHT_2 : OBJ.YACHT_1, buoy: m, ang: i ? 2.4 : 0.6, yaw: 0, float: new Floater(0.13, 0.045, { k: 30, c: 5, maxTilt: 0.16 }) }));
@@ -89,15 +89,10 @@ export class Harbour {
 
   *day() {
     for (;;) {
+      this.workDone = false;
       this.setPhase('work');
-      if (this.work) {
-        let done = false;
-        Promise.resolve(this.work(this)).then(() => { done = true; }, err => { console.error(err); done = true; });
-        yield waitUntil(() => done);
-      } else {
-        yield waitUntil(() => this.castOffRequested);
-      }
-      this.castOffRequested = false;
+      this.emit('workStart');
+      yield waitUntil(() => this.workDone && !this.hold);
       yield* this.departure();
       yield* this.voyage();
       yield* this.arrival();
@@ -278,8 +273,9 @@ export class Harbour {
   }
 
   horn() { this.emit('horn'); }
-  requestCastOff() { this.castOffRequested = true; this.emit('castoff'); }
+  finishWork() { this.workDone = true; }
   callIn() { this.hurry = 2.2; }
+  get atBerth() { return this.phase === 'work' || this.phase === 'unloading' || this.phase === 'loading'; }
 
   // ---- every frame --------------------------------------------------------------------------------------
   update(dt) {

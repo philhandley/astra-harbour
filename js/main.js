@@ -1,0 +1,259 @@
+// Jelly Harbour: boot, the main loop, and the glue between the harbour, the games and the panel.
+import { Scene } from './world/scene.js';
+import { placeDefaults } from './world/rig.js';
+import { OBJ } from './world/env.js';
+import { Cargo, Crates } from './sim/cargo.js';
+import { CraneYard } from './sim/cranes.js';
+import { Harbour } from './sim/ships.js';
+import { makeAutoWork } from './sim/autowork.js';
+import { Particles } from './sim/particles.js';
+import { Lifebuoys } from './sim/lifebuoys.js';
+import { Stage3D } from './stage3d.js';
+import { Panel, AbortError } from './ui/panel.js';
+import { attachInput } from './ui/input.js';
+import { Tables } from './game/tables.js';
+import { Bonds } from './game/bonds.js';
+import { P, setting, addTally, suggestLevel } from './game/progress.js';
+import { setVoice } from './game/voice.js';
+import * as audio from './audio.js';
+import { quat } from './gpu/math.js';
+
+const q = new URLSearchParams(location.search);
+if (q.get('shot')) import('../dev/shotkit.js');
+const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+const app = {
+  mode: 'home', paused: false, activity: 0, firmness: 1, damping: 0.35, tide: 0,
+  game: null, gameKind: null,
+};
+window.__app = app;
+
+async function boot() {
+  audio.initAudio();
+  audio.setSound(setting('sound'));
+  const canvas = document.getElementById('stage');
+  let scene;
+  try {
+    scene = await Scene.create(canvas, { reducedMotion: reduced, onLost: () => showFallback('The graphics card stopped answering.') });
+  } catch (err) {
+    console.warn('WebGPU unavailable:', String(err));
+    showFallback(String(err).includes('no-webgpu') ? 'This browser has no WebGPU.' : 'The graphics card could not start WebGPU.');
+    return;
+  }
+  app.scene = scene;
+  scene.setFlavour(setting('flavour') || 'seaglass');
+  placeDefaults(scene);
+
+  app.cargo = new Cargo(scene);
+  app.crates = new Crates(scene);
+  app.cranes = new CraneYard(scene, app.cargo);
+  app.harbour = new Harbour(scene, app.cranes);
+  app.autowork = makeAutoWork(app.cargo, app.cranes);
+  app.particles = new Particles(scene);
+  app.lifebuoys = new Lifebuoys(scene, app.harbour, app.particles, { onSplash: (x, z, s) => { audio.splash(s * 0.6); if (app.life) app.life.splash(x, z, s); } });
+  app.stage = new Stage3D(app);
+  app.ui = new Panel(app);
+
+  // sounds and tallies from the cranes and the ship
+  app.cranes.onLatch = () => audio.latch();
+  app.cranes.onLand = (c, g) => { audio.clunk(g.size === 10 ? 1.2 : 0.9); if (app.mode !== 'tables') addTally('boxes', g.size); app.activity = Math.min(1.5, app.activity + 0.25); };
+  app.harbour.on('workStart', () => { if (app.mode !== 'tables') app.autowork.run(app.harbour); });
+  app.harbour.on('horn', () => { app.horn(true); addTally('voyages'); });
+
+  // wildlife, if it has been built
+  try {
+    const life = await import('./life/life.js');
+    app.life = await life.attach(scene, { perches: () => perches(), hulls: () => app.harbour.hulls() });
+  } catch (err) { console.warn('life not loaded', String(err)); }
+
+  app.particles.onLand = p => { if (app.life && p.tag === 'pellet') app.life.feed(p.x, p.z); };
+
+  attachInput(app);
+  app.ui.home();
+  app.harbour.start();
+  if (q.has('debugvoyage')) { app.harbour.on('workStart', () => setTimeout(() => app.harbour.finishWork(), 500)); }
+
+  scene.resize();
+  addEventListener('resize', () => { scene.resize(); layoutShift(); });
+  layoutShift();
+  if (q.get('game')) app.startGame(q.get('game'), q.get('key'), Number(q.get('level') || 0) || undefined);
+  requestAnimationFrame(loop);
+  document.addEventListener('visibilitychange', () => { last = performance.now(); });
+  console.log('HARBOUR ready', JSON.stringify(scene.buildStats));
+  if (q.get('shot')) {
+    const frames = Number(q.get('frames') || 90);
+    let n = 0;
+    const tick = () => { if (++n >= frames) { console.log('HARBOUR frames', n, scene.r.errors.length ? 'GPU errors: ' + scene.r.errors.slice(0, 3).join(' | ') : 'no gpu errors'); import('../dev/shotkit.js').then(m => setTimeout(m.shotReady, 60)); } else requestAnimationFrame(tick); };
+    requestAnimationFrame(tick);
+  }
+}
+
+// Gull perches from every builder that exported some, plus the moving ones (vessels and cranes).
+function perches() {
+  const out = [];
+  const pts = app.scene.points || {};
+  for (const name of ['town', 'terminal', 'fishquay', 'breakwater']) {
+    const p = pts[name];
+    if (!p) continue;
+    for (const v of [...(p.perches || []), ...(p.gallery || [])]) out.push(Array.isArray(v) ? { obj: 0, local: v } : v);
+  }
+  if (pts.cranes) for (const v of pts.cranes.perches || []) out.push(v);
+  const vs = pts.vessels;
+  if (vs) {
+    if (vs.ship && vs.ship.mastTop) out.push({ obj: OBJ.SHIP, local: vs.ship.mastTop });
+    if (vs.tug && vs.tug.mastTop) out.push({ obj: OBJ.TUG, local: vs.tug.mastTop });
+    if (vs.yacht && vs.yacht.mastTop) { out.push({ obj: OBJ.YACHT_1, local: vs.yacht.mastTop }); out.push({ obj: OBJ.YACHT_2, local: vs.yacht.mastTop }); }
+    if (vs.boat && vs.boat.mastTop) { out.push({ obj: OBJ.BOAT_A, local: vs.boat.mastTop }); out.push({ obj: OBJ.BOAT_B, local: vs.boat.mastTop }); }
+  }
+  return out;
+}
+
+// Keep the harbour centred in the space left of the panel.
+function layoutShift() {
+  const w = innerWidth;
+  const narrow = w <= 760;
+  const panelW = narrow ? 0 : 344 + 32;
+  app.scene.camera.shiftX = panelW / w;
+  app.scene.camera.shiftY = narrow ? -0.18 : 0;
+}
+
+// ---- the loop ---------------------------------------------------------------------------------------------------
+let last = performance.now(), uiTick = 0, smokeT = 0;
+function loop(now) {
+  requestAnimationFrame(loop);
+  if (document.hidden) { last = now; return; }
+  const real = Math.min(0.05, (now - last) / 1000);
+  last = now;
+  const dt = app.paused ? 0 : real;
+  const s = app.scene;
+  app.cranes.update(dt);
+  app.harbour.update(dt);
+  app.cargo.update(dt);
+  app.crates.update(dt);
+  app.particles.update(dt);
+  app.lifebuoys.update(dt);
+  if (app.life) app.life.update(dt);
+  // tug funnel smoke, more when working
+  smokeT += dt * (0.8 + Math.abs(app.harbour.tug.prop) * 5);
+  if (smokeT > 1 && funnel('tug')) { smokeT = 0; const f = funnel('tug'); app.particles.smoke(f[0], f[1], f[2]); }
+  if (app.paused) { s.camera.update(real); s.time += 0; }
+  else s.step(dt);
+  s.render();
+  app.stage.update();
+  app.activity = Math.max(0, app.activity - real * 0.25) + (app.cranes.a.busy || app.cranes.b.busy ? real * 0.3 : 0) + app.harbour.ship.speed * real * 2;
+  app.activity = Math.min(1.2, app.activity);
+  if (++uiTick % 10 === 0) app.ui.refreshHarbour();
+}
+
+// World position of a funnel top from the vessels' exported points.
+function funnel(which) {
+  const vs = app.scene.points && app.scene.points.vessels;
+  const local = vs && vs[which] && vs[which].funnelTop;
+  if (!local) return null;
+  const o = app.scene.getObject(which === 'tug' ? OBJ.TUG : OBJ.SHIP);
+  const r = quat.rotate(o.q, local);
+  return [o.pos[0] + r[0], o.pos[1] + r[1], o.pos[2] + r[2]];
+}
+
+// ---- actions from the panel ------------------------------------------------------------------------------------
+app.horn = (fromShip = false) => {
+  audio.horn();
+  const f = funnel('ship');
+  if (f) app.particles.steam(f[0], f[1], f[2]);
+  if (app.life) app.life.horn();
+  if (!fromShip) app.activity = Math.min(1.2, app.activity + 0.3);
+};
+app.feed = () => {
+  const pe = app.scene.points && app.scene.points.fishquay && app.scene.points.fishquay.pierEnds;
+  const p = pe && pe[0] ? pe[0] : [1.0, 0.14, -0.22];
+  app.particles.pellets(p[0] - 0.02, p[1] + 0.03, p[2] + 0.04, 30);
+  addTally('fed');
+  app.activity = Math.min(1.2, app.activity + 0.3);
+};
+app.castOffOrCallIn = () => {
+  const h = app.harbour;
+  if (h.phase === 'atSea' || h.phase === 'comingIn') { h.callIn(); return; }
+  if (h.atBerth) { if (app.autowork.running) app.autowork.castOffNow(); else h.finishWork(); }
+};
+app.setFlavour = id => { app.scene.setFlavour(id); setting('flavour', id); };
+app.setFirmness = v => { app.firmness = v; app.scene.firmness = v; app.scene.sim.sigma = 0.0006 + 0.0018 * v; };
+app.setDamping = v => { app.damping = v; app.scene.sim.damping = v; };
+app.setTide = v => { app.tide = v; app.scene.tide = v; app.scene.sim.setSea(app.scene.sea); };
+app.togglePause = () => { app.paused = !app.paused; };
+app.toggleSound = () => { const on = !setting('sound'); setting('sound', on); audio.setSound(on); setVoice(on); return on; };
+app.resetView = () => app.scene.camera.go(app.mode === 'tables' ? 'ship' : app.mode === 'bonds' ? 'pier' : 'home');
+app.resetWorld = () => {
+  app.scene.sim.reset();
+  app.scene.jel.vax = app.scene.jel.vaz = 0;
+  app.setFirmness(1); app.setDamping(0.35); app.setTide(0);
+  app.ui.home();
+};
+
+// ---- games ------------------------------------------------------------------------------------------------------
+const TABLE_KEYS = [{ id: '2', label: '×2' }, { id: '5', label: '×5' }, { id: '10', label: '×10' }, { id: 'mix', label: 'Mix' }];
+const BOND_KEYS = [{ id: '10', label: 'Make 10' }, { id: '20', label: 'Make 20' }];
+
+app.startGame = async (kind, key, level) => {
+  if (app.game) { app.ui.abort(); app.game.alive = false; }
+  const last = P().last[kind] || {};
+  key = key || last.key || (kind === 'tables' ? '2' : '10');
+  level = level || suggestLevel(kind, key);
+  app.mode = kind;
+  const token = { alive: true };
+  app.game = token;
+  app.stage.clearLabels();
+  app.ui.game({
+    game: kind, title: kind === 'tables' ? 'Crane Tables' : 'Fish Bonds',
+    keys: kind === 'tables' ? TABLE_KEYS : BOND_KEYS, key, level,
+    onKey: k => app.startGame(kind, k, suggestLevel(kind, k)),
+    onLevel: l => app.startGame(kind, key, l),
+    onBack: () => app.goHome(),
+  });
+  const G = kind === 'tables' ? new Tables(app) : new Bonds(app);
+  try {
+    for (;;) {
+      const next = await G.run(key, level);
+      if (!token.alive) return;
+      if (next === 'home') { app.goHome(); return; }
+      // play again: re-open the same game view (the patch card replaced the question card)
+      app.ui.game({
+        game: kind, title: kind === 'tables' ? 'Crane Tables' : 'Fish Bonds',
+        keys: kind === 'tables' ? TABLE_KEYS : BOND_KEYS, key, level: suggestLevel(kind, key) > level ? suggestLevel(kind, key) : level,
+        onKey: k => app.startGame(kind, k, suggestLevel(kind, k)),
+        onLevel: l => app.startGame(kind, key, l),
+        onBack: () => app.goHome(),
+      });
+      level = suggestLevel(kind, key) > level ? suggestLevel(kind, key) : level;
+    }
+  } catch (err) {
+    if (!(err instanceof AbortError)) console.error(err);
+  }
+};
+
+app.goHome = () => {
+  if (app.game) { app.game.alive = false; app.game = null; }
+  app.ui.abort();
+  app.stage.clearLabels();
+  app.stage.onSlotTap = null;
+  app.mode = 'home';
+  app.cranes.speed = 1;
+  app.scene.camera.go('home');
+  app.ui.home();
+  // hand the cargo back to the automatic day if the ship is waiting at the berth
+  if (app.harbour.atBerth && !app.harbour.workDone) app.autowork.run(app.harbour);
+};
+
+function showFallback(why) {
+  document.getElementById('pill').classList.add('lite');
+  document.querySelector('#pill span').textContent = '2D · Lite';
+  const f = document.getElementById('fallback');
+  f.hidden = false;
+  document.getElementById('fallbackWhy').textContent = `${why} Here is the flat harbour instead: the maths games work just the same.`;
+  document.getElementById('fallbackGo').addEventListener('click', async () => {
+    f.hidden = true;
+    const m = await import('./stage2d.js');
+    m.startFlat(app);
+  }, { once: true });
+}
+
+boot();

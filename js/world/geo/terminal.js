@@ -34,7 +34,7 @@ const WALK_X = [-2.135, -2.085];             // pedestrian walk from the office 
 const OFF = {};
 OFF.y0 = Y_PAVE; OFF.g = OFF.y0 + 0.008; OFF.s1 = OFF.g + 0.056; OFF.s1t = OFF.s1 + 0.006; OFF.r = OFF.s1t + 0.054; OFF.rt = OFF.r + 0.007;
 OFF.cabTop = OFF.rt + 0.006 + 0.04 + 0.006;
-const PLOT = { x0: X0, x1: OFFICE.x1 + 0.035, z0: LAND_Z + 0.004, z1: OFFICE.z1 + 0.025 };
+const PLOT = { x0: X0 + 0.008, x1: OFFICE.x1 + 0.035, z0: LAND_Z + 0.007, z1: OFFICE.z1 + 0.025 };
 const BLD = { x0: OFFICE.x0 + 0.02, x1: OFFICE.x1 - 0.02, z0: OFFICE.z0 + 0.02, z1: OFFICE.z1 - 0.09 };
 
 const COL = {
@@ -42,7 +42,7 @@ const COL = {
   stage: 0x48525d, walk: 0x6aa95e, hatchK: 0x2b2d31, trench: 0x777d84, pave: 0xe3dfd6, kerb: 0xbfbab0,
   bollard: 0x2f3439, iron: 0x1c1e21, rubber: 0x1c1e21, ladderT: 0xf0b92a, ladderF: 0x9ea5aa,
   lamp: 0xfff4d6, mast: 0xd3d8dc, housing: 0x50565d,
-  wall: 0xf3f3f0, slab: 0xfbfbf9, glass: 0x9cc3e0, roof: 0xb9bdc0, core: 0xe8743a, cab: 0x8fb8d6,
+  wall: 0xf3f3f0, slab: 0xfbfbf9, glass: 0x86b9e6, roof: 0xb9bdc0, core: 0xe8743a, cab: 0x8fb8d6,
 };
 
 // ---- layout of the yard and the quay furniture (pure data, so points can be exported without building) ----------
@@ -60,12 +60,12 @@ function yardBlocks() {
 const BLOCKS = yardBlocks();
 const BAYS = Array.from({ length: 10 }, (_, i) => BERTH.x + bayX(i));
 
-const LADDERS = [-2.16, -1.26, -0.36, 0.66, 1.50, 2.52];
+const LADDERS = [-2.16, -1.26, -0.36, 0.66, 1.24, 2.52];
 const FENDERS_T = [-2.34, -1.98, -1.71, -1.44, -1.08, -0.81, -0.54, -0.18, 0.09];
 const TUG_FENDERS = [[0.20, 0.39], [0.42, 0.61]];
 const BOLLARDS_T = [-2.30, -2.00, -1.70, -1.40, -1.10, -0.80, -0.50, -0.20, 0.10, 0.40, 0.72];
-const BOLLARDS_F = [0.90, 1.20, 1.58, 1.88, 2.12];
-const TYRES = [1.05, 1.35, 1.73, 2.00];
+const BOLLARDS_F = [0.82, 1.08, 1.38, 1.68, 1.98];
+const TYRES = [0.95, 1.53, 1.83, 2.10];
 const TOWER = { base: QUAY_TOP + 0.008, top: QUAY_TOP + 0.70, cap: QUAY_TOP + 0.742 };
 const BT_H = 0.019, BF_H = 0.0185;            // bollard heights above the coping
 
@@ -75,7 +75,7 @@ export const points = {
   // Gull perches [x, y, z]: light tower tops first, then the office cab roof, then fishing quay bollard tops.
   perches: [
     ...LIGHT_TOWERS.map(([x, z]) => [x, TOWER.cap, z]),
-    [(BLD.x0 + BLD.x1) / 2 - 0.03, OFF.cabTop, BLD.z1 - 0.06],
+    [(BLD.x0 + BLD.x1) / 2 - 0.015, OFF.cabTop, BLD.z1 - 0.06],
     ...BOLLARDS_F.filter(pierClear).slice(0, 3).map(x => [x, COPE_F + BF_H, COPE_MID]),
   ],
   // Mooring bollards on the coping [x, yTop, z] (terminal then fishing quay), for mooring lines.
@@ -171,6 +171,11 @@ function surface(mb) {
   // crane cable trench: a run of steel cover plates beside the water-side rail
   mb.boxMM(RAIL_X[0], Y_ASPH - 0.001, TRENCH[0], RAIL_X[1], Y_ASPH + 0.0009, TRENCH[1], { color: COL.trench, mat: MAT.STEEL, skip: ['bottom'] });
   for (let x = RAIL_X[0] + 0.12; x < RAIL_X[1]; x += 0.12) rectY(mb, x - 0.0008, TRENCH[0], x + 0.0008, TRENCH[1], Y_ASPH + 0.0011, 0x4a4f55);
+  // crisp kerbs: along the block edge, along the back, and at the fishing quay boundary
+  const K = { color: 0xe6e2da, mat: MAT.CONCRETE, skip: ['bottom'] };
+  mb.boxMM(X0, Y_ASPH - 0.001, LAND_Z, X0 + 0.008, Y_ASPH + 0.004, COPE_BACK, K);
+  mb.boxMM(X0 + 0.008, Y_ASPH - 0.001, LAND_Z, X1 - 0.008, Y_ASPH + 0.004, LAND_Z + 0.007, K);
+  mb.boxMM(X1 - 0.008, Y_ASPH - 0.001, LAND_Z, X1, Y_ASPH + 0.004, COPE_BACK, K);
   // office forecourt: kerbed paving
   mb.boxMM(PLOT.x0, Y_ASPH - 0.001, PLOT.z0, PLOT.x1, Y_PAVE, PLOT.z1, { color: COL.pave, mat: MAT.CONCRETE, skip: ['bottom'] });
 }
@@ -220,11 +225,9 @@ function markings(mb) {
   const L = LANE, zc = (L.z0 + L.z1) / 2;
   rectY(mb, L.x0, L.z0 - 0.002, L.x1, L.z0 + 0.002, Y_LINE, W);
   rectY(mb, L.x0, L.z1 - 0.002, L.x1, L.z1 + 0.002, Y_LINE, W);
-  dashedX(mb, L.x0 + 0.08, L.x1 - 0.02, zc, 0.003, Y_LINE, 0.05, 0.04, W);
-  for (const x of [-1.85, -1.05, -0.25, 0.40]) {
-    arrow(mb, x, (zc + L.z1) / 2, 1, Y_LINE, W);
-    arrow(mb, x - 0.30, (zc + L.z0) / 2, -1, Y_LINE, W);
-  }
+  dashedX(mb, WALK_X[1] + 0.04, L.x1 - 0.02, zc, 0.003, Y_LINE, 0.05, 0.04, W);
+  for (const x of [-1.80, -1.00, -0.20, 0.42]) arrow(mb, x, (zc + L.z1) / 2, 1, Y_LINE, W);
+  for (const x of [-1.95, -1.15, -0.35, 0.28]) arrow(mb, x, (zc + L.z0) / 2, -1, Y_LINE, W);
 
   // ---- pedestrian route: green walk from the office, zebra over the truck lane
   rectY(mb, WALK_X[0], PLOT.z1, WALK_X[1], LAND_STRIP[0], Y_FILL, COL.walk);
@@ -233,7 +236,7 @@ function markings(mb) {
 
   // ---- hatched safety zones: crane stop zones at the rail ends, light tower bases
   hatch(mb, X0 + 0.008, L.z0 + 0.006, L.x0 - 0.075, L.z1 - 0.006, Y_FILL, Yl);
-  hatch(mb, L.x1 + 0.012, L.z0 + 0.006, X1 - 0.008, L.z1 - 0.006, Y_FILL, Yl);
+  hatch(mb, L.x1 + 0.012, L.z0 + 0.006, X1 - 0.016, L.z1 - 0.006, Y_FILL, Yl);
   const [tx, tz] = LIGHT_TOWERS[1];
   hatch(mb, tx - 0.042, tz - 0.042, tx + 0.042, tz + 0.042, Y_FILL, Yl, 0.022);
 }
@@ -296,10 +299,10 @@ function office(mb) {
   // roof: membrane inside a parapet
   const rx0 = b.x0 - ox, rx1 = b.x1 + ox, rz0 = b.z0 - ox, rz1 = b.z1 + ox, pt = 0.004, ph = 0.007;
   rectY(mb, rx0 + pt, rz0 + pt, rx1 - pt, rz1 - pt, yRt, COL.roof);
-  mb.boxMM(rx0, yRt, rz0, rx1, yRt + ph, rz0 + pt, { color: COL.slab, ...P });
-  mb.boxMM(rx0, yRt, rz1 - pt, rx1, yRt + ph, rz1, { color: COL.slab, ...P });
-  mb.boxMM(rx0, yRt, rz0 + pt, rx0 + pt, yRt + ph, rz1 - pt, { color: COL.slab, ...P, skip: ['pz', 'nz'] });
-  mb.boxMM(rx1 - pt, yRt, rz0 + pt, rx1, yRt + ph, rz1 - pt, { color: COL.slab, ...P, skip: ['pz', 'nz'] });
+  mb.boxMM(rx0, yRt, rz0, rx1, yRt + ph, rz0 + pt, { color: COL.slab, ...P, skip: ['bottom'] });
+  mb.boxMM(rx0, yRt, rz1 - pt, rx1, yRt + ph, rz1, { color: COL.slab, ...P, skip: ['bottom'] });
+  mb.boxMM(rx0, yRt, rz0 + pt, rx0 + pt, yRt + ph, rz1 - pt, { color: COL.slab, ...P, skip: ['pz', 'nz', 'bottom'] });
+  mb.boxMM(rx1 - pt, yRt, rz0 + pt, rx1, yRt + ph, rz1 - pt, { color: COL.slab, ...P, skip: ['pz', 'nz', 'bottom'] });
   // roof railing
   const ry = yRt + ph + 0.011, ri = 0.002;
   const ring = [[rx0 + ri, ry, rz0 + ri], [rx1 - ri, ry, rz0 + ri], [rx1 - ri, ry, rz1 - ri], [rx0 + ri, ry, rz1 - ri], [rx0 + ri, ry, rz0 + ri]];
@@ -561,7 +564,7 @@ function underwater(mb, rand) {
   const bandBot = x => { const t = ((x - xa) / (xb - xa)) * n, k = Math.min(n - 1, Math.max(0, Math.floor(t))), f = t - k; return band[k][2] * (1 - f) + band[k + 1][2] * f; };
   // rounded lobes of crust hanging down from the band
   for (let k = 0; k < 80; k++) {
-    const x = xa + 0.02 + rand() * (xb - xa - 0.04);
+    const x = xa + 0.03 + rand() * (xb - xa - 0.06);
     if (nearPier(x, 0.1)) continue;
     const top = bandBot(x) + 0.004, w = 0.008 + rand() * 0.012, len = 0.008 + rand() * 0.026;
     const bot = Math.max(wallFloor(x) + 0.01, top - len);
@@ -590,7 +593,7 @@ function underwater(mb, rand) {
     mb.pop();
   };
   for (let c = 0; c < 105; c++) {
-    const x = xa + 0.012 + rand() * (xb - xa - 0.024);
+    const x = xa + 0.03 + rand() * (xb - xa - 0.06);
     if (nearPier(x, 0.09)) continue;
     const fl = wallFloor(x) + 0.012;
     const deep = Math.pow(rand(), 2.4);                  // most clusters near the top
@@ -598,14 +601,14 @@ function underwater(mb, rand) {
     const m = deep < 0.2 ? 3 + Math.floor(rand() * 3) : 2 + Math.floor(rand() * 2);
     const ang0 = rand() * Math.PI;
     for (let j = 0; j < m; j++) {
-      const x1 = x + (rand() - 0.5) * 0.026, y1 = Math.min(-0.012, Math.max(fl, y0 + (rand() - 0.5) * 0.02));
+      const x1 = Math.min(xb - 0.014, Math.max(xa + 0.014, x + (rand() - 0.5) * 0.026)), y1 = Math.min(-0.012, Math.max(fl, y0 + (rand() - 0.5) * 0.02));
       const s = 0.85 + rand() * 0.6;
       dome(x1, y1, 0.0085 * s, 0.0042 * s, 0.0048 * s, ang0 + (rand() - 0.5) * 1.2);
     }
   }
   // a crunchy fringe of shells along the wall foot
   for (let k = 0; k < 45; k++) {
-    const x = xa + 0.02 + rand() * (xb - xa - 0.04);
+    const x = xa + 0.025 + rand() * (xb - xa - 0.05);
     if (nearPier(x, 0.09)) continue;
     dome(x, wallFloor(x) + 0.003 + rand() * 0.006, 0.008 + rand() * 0.004, 0.004, 0.0045, rand() * Math.PI);
   }
@@ -628,7 +631,7 @@ function underwater(mb, rand) {
     }
   };
   for (let k = 0; k < 210; k++) {
-    const x = xa + 0.01 + rand() * (xb - xa - 0.02);
+    const x = xa + 0.025 + rand() * (xb - xa - 0.05);
     if (nearPier(x, 0.09)) continue;
     const fl = wallFloor(x) + 0.006;
     const berth = x > -1.98 && x < 0.08;                 // the ship lies alongside here: keep the weed hugging the wall
@@ -641,7 +644,7 @@ function underwater(mb, rand) {
   }
   // bushy clumps at the wall foot
   for (let k = 0; k < 30; k++) {
-    const x = xa + 0.03 + rand() * (xb - xa - 0.06);
+    const x = xa + 0.045 + rand() * (xb - xa - 0.09);
     if (nearPier(x, 0.1)) continue;
     const fl = wallFloor(x) - 0.002, col = weedCols[Math.floor(rand() * 5)];
     const m = 3 + Math.floor(rand() * 3);

@@ -34,7 +34,7 @@ const cranes = new CraneYard(scene, cargo);
 cranes.speed = 3;
 const harbour = new Harbour(scene, cranes);
 let workCalls = 0;
-harbour.work = async () => { workCalls++; await new Promise(r => setTimeout(r, 0)); };
+harbour.on('workStart', () => { workCalls++; setTimeout(() => harbour.finishWork(), 0); });
 harbour.start();
 
 const HL = SHIP.length / 2, HB = SHIP.beam / 2;

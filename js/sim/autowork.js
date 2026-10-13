@@ -2,9 +2,22 @@
 // yard, fresh boxes arrive, and the cranes load them aboard. "Cast off" stops new lifts (the box in hand finishes).
 import { YARD_LIVERIES } from './cargo.js';
 
+// Returns { run(harbour), stop() }: run() works one cargo exchange and then tells the harbour to sail, unless stopped.
 export function makeAutoWork(cargo, cranes) {
-  return async function work(harbour) {
-    const stop = () => harbour.castOffRequested;
+  const ctl = { stopped: false, running: false, castOff: false };
+  ctl.stop = () => { ctl.stopped = true; };
+  ctl.run = async harbour => {
+    if (ctl.running) return;
+    ctl.running = true; ctl.stopped = false; ctl.castOff = false;
+    try {
+      await work(harbour);
+      await waitIdle(cranes);
+      if (!ctl.stopped || ctl.castOff) harbour.finishWork();
+    } finally { ctl.running = false; }
+  };
+  ctl.castOffNow = () => { ctl.castOff = true; ctl.stopped = true; };
+  async function work(harbour) {
+    const stop = () => ctl.stopped;
     const bays = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
     // a ship that arrives empty gets a mixed load
     if (!cargo.groupsOn('ship').length) {
@@ -47,8 +60,8 @@ export function makeAutoWork(cargo, cranes) {
       done++;
       harbour.status = `Loading ${done} / ${load.length}`;
     }, stop);
-    await waitIdle(cranes);
-  };
+  }
+  return ctl;
 }
 
 // Crane A takes bays from the left, crane B from the right, so they work apart and meet in the middle.

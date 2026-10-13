@@ -124,7 +124,7 @@ function shed(mb, rnd) {
   // dark rubber buffer strip and a yellow safety line along the dock edge
   for (let k = 0; k < 6; k++) {
     const x = SX0 + 0.06 + k * ((SX1 - SX0 - 0.12) / 5);
-    mb.boxMM(x - 0.006, G + 0.004, dz1, x + 0.006, FY - 0.003, dz1 + 0.005, O(0x26282a, MAT.RUBBER, 0, { skip: ['bottom', 'nz'] }));
+    mb.boxMM(x - 0.0045, G + 0.006, dz1, x + 0.0045, FY - 0.004, dz1 + 0.004, O(0x3a3d40, MAT.RUBBER, 0, { skip: ['bottom', 'nz'] }));
   }
   mb.boxMM(SX0 - 0.01, FY, dz1 - 0.005, SX1 + 0.01, FY + 0.0006, dz1, O(C.yellow));
   // steps up to the dock at both ends
@@ -250,12 +250,6 @@ function shed(mb, rnd) {
     mb.cylinder(x, FY, SZ1 + 0.005, 0.0022, ye - rt - 0.012 - FY, { ...trim, seg: 6, bottom: false });
     mb.beam([x, ye - rt - 0.013, SZ1 + 0.005], [x, ye - rt - 0.004, SZ1 + OVZ + 0.001], 0.004, 0.004, trim);
   }
-  // translucent rooflight strips on the back slope
-  for (const x of [SCX - 0.2, SCX + 0.2]) {
-    const za = SZ0 + 0.05, zb = SZ0 + 0.17;
-    const yAt = z => RIDGE_Y - slope * (SCZ - z) + 0.0008;
-    mb.quad([x - 0.035, yAt(za), za], [x + 0.035, yAt(za), za], [x + 0.035, yAt(zb), zb], [x - 0.035, yAt(zb), zb], O(0xd5e2de, MAT.CORRUGATED));
-  }
   // sign board standing on the front slope (no text: a blue fish between little waves)
   {
     const zs = SZ1 - 0.035, yr = RIDGE_Y - slope * (zs - SCZ);
@@ -372,7 +366,7 @@ function creel(mb, x, y, z, ang, rnd) {
   mb.push(); mb.translate(x, y, z); mb.rotateY(ang);
   const L = 0.021, R = 0.0125, by = 0.0035;
   mb.boxMM(-L, 0, -R, L, by, R, O(C.creelBase, MAT.TIMBER, 0, { skip: ['bottom'] }));
-  const netCol = rnd.pick([0x3f86b0, 0x2f9a78, 0xe0853a, 0x3f86b0, 0xd9c24a]);
+  const netCol = rnd.pick([0x2c5f8a, 0x2d6b55, 0xb5652e, 0x2c5f8a, 0x3a4a5a]);
   const net = O(netCol, MAT.CANVAS);
   const n = 7, arc = [];
   for (let k = 0; k <= n; k++) { const a = (k / n) * Math.PI; arc.push([R * Math.cos(a), by + R * 0.95 * Math.sin(a)]); }
@@ -386,8 +380,9 @@ function creel(mb, x, y, z, ang, rnd) {
   mb.push(); mb.translate(L + 0.0004, by + R * 0.45, 0); mb.rotateZ(-Math.PI / 2);
   mb.cylinder(0, 0, 0, 0.0045, 0.0005, { ...O(0x1a2124), seg: 8, bottom: false });
   mb.pop();
-  const hoop = O(0x2a2f33);
-  for (const hx of [-L * 0.62, 0, L * 0.62]) mb.tube(arc.map(([zz, yy]) => [hx, yy + 0.0004, zz * 1.03]), 0.0009, { ...hoop, seg: 4 });
+  const hoop = O(0xe6d8b4);
+  for (const hx of [-L * 0.97, -L * 0.33, L * 0.33, L * 0.97]) mb.tube(arc.map(([zz, yy]) => [hx, yy + 0.0005, zz * 1.04]), 0.001, { ...hoop, seg: 4 });
+  mb.tube([[-L, by + R * 0.95 + 0.0008, 0], [L, by + R * 0.95 + 0.0008, 0]], 0.0008, { ...hoop, seg: 4 });
   mb.pop();
 }
 
@@ -529,8 +524,8 @@ function bollard(mb, x, y, z, s, col = C.bollard) {
 }
 
 function weed(mb, x, y, z, len, ang, rnd) {
-  const col = rnd.pick([0x5f9a45, 0x77a84a, 0x8a7a3a, 0x4e8a52]);
-  const n = 5, w0 = 0.0055;
+  const col = rnd.pick([0x6fb04a, 0x86b84e, 0x9a8a3c, 0x5aa05a]);
+  const n = 5, w0 = 0.0075;
   const dx = Math.cos(ang), dz = Math.sin(ang);
   const side = [-dz, 0, dx];
   const pts = [];
@@ -557,7 +552,7 @@ function weed(mb, x, y, z, len, ang, rnd) {
   }
 }
 
-function pile(mb, x, z, rnd) {
+function pile(mb, x, z, rnd, south) {
   const yb = floorHeight(x, z) - 0.012;
   // timber above the slime band, slime at the tide line, mussels below
   mb.cylinder(x, 0.03, z, PILE_R, CAP_BOT - 0.03, { ...O(C.pile, MAT.TIMBER, 1), seg: 8, caps: false });
@@ -578,11 +573,11 @@ function pile(mb, x, z, rnd) {
   }
   mb.loft(rings, O(0x22262e, MAT.MUSSEL));
   // weed strands near the foot
-  const nw = 2 + Math.floor(rnd() * 3);
+  const nw = 3 + Math.floor(rnd() * 3);
   for (let k = 0; k < nw; k++) {
-    const a = rnd() * Math.PI * 2;
-    const y0 = yb + 0.01 + rnd() * Math.min(0.12, span * 0.5);
-    const len = Math.min(0.045 + rnd() * 0.06, MUS_TOP - 0.012 - y0);
+    const a = south ? Math.PI * (1.05 + 0.9 * rnd()) : rnd() * Math.PI * 2;
+    const y0 = yb + 0.008 + rnd() * Math.min(0.14, span * 0.55);
+    const len = Math.min(0.06 + rnd() * 0.07, MUS_TOP - 0.014 - y0);
     if (len < 0.02) continue;
     weed(mb, x + Math.cos(a) * (PILE_R + 0.004), y0, z + Math.sin(a) * (PILE_R + 0.004), len, a, rnd);
   }
@@ -616,7 +611,7 @@ function pier(mb, rnd) {
   const piles = [];
   for (const x of armX) piles.push([x, zN], [x, zS]);
   for (const z of rootZ) piles.push([xr0, z], [xr1, z]);
-  for (const [x, z] of piles) pile(mb, x, z, rnd);
+  for (const [x, z] of piles) pile(mb, x, z, rnd, z > PIER.arm.z);
 
   // X bracing between piles, below the deck
   const yb1 = CAP_BOT - 0.008, yb0 = -0.028;
@@ -705,11 +700,12 @@ function pier(mb, rnd) {
     const y = O(C.yellow, MAT.STEEL), dk = O(0x3a3f44, MAT.STEEL);
     mb.boxMM(mx - 0.011, DECK, mz - 0.011, mx + 0.011, DECK + 0.003, mz + 0.011, { ...dk, skip: ['bottom'] });
     mb.cylinder(mx, DECK + 0.003, mz, 0.0038, 0.006, { ...dk, seg: 8, r2: 0.0034 });
-    mb.cylinder(mx, DECK + 0.009, mz, 0.0032, 0.092, { ...y, seg: 8, r2: 0.0026 });
-    mb.sphere(mx, DECK + 0.102, mz, 0.0034, { ...y, seg: 8, rings: 4 });
-    const heel = [mx, DECK + 0.024, mz + 0.002], tip = [mx - 0.022, DECK + 0.088, ARM_S - 0.016];
-    mb.beam(heel, tip, 0.0036, 0.0036, y);
-    mb.tube([[mx, DECK + 0.1, mz], tip], 0.0006, { ...O(0x2a2a2a), seg: 4 });
+    mb.cylinder(mx, DECK + 0.009, mz, 0.0042, 0.100, { ...y, seg: 8, r2: 0.0032 });
+    mb.sphere(mx, DECK + 0.110, mz, 0.0042, { ...y, seg: 8, rings: 4 });
+    mb.cylinder(mx, DECK + 0.020, mz, 0.0058, 0.004, { ...dk, seg: 8 });
+    const heel = [mx, DECK + 0.024, mz + 0.004], tip = [mx - 0.024, DECK + 0.096, ARM_S - 0.016];
+    mb.beam(heel, tip, 0.0048, 0.0048, y);
+    mb.tube([[mx, DECK + 0.108, mz], tip], 0.0007, { ...O(0x2a2a2a), seg: 4 });
     mb.sphere(tip[0], tip[1], tip[2], 0.0024, { ...dk, seg: 6, rings: 3 });
     const hookY = DECK + 0.046;
     mb.tube([tip, [tip[0], hookY + 0.005, tip[2]]], 0.0005, { ...O(0x2a2a2a), seg: 4 });
@@ -726,7 +722,40 @@ function pier(mb, rnd) {
     crate(mb, mx + 0.066, DECK, ARM_N + 0.02, 0.1, C.white, true, rnd);
   }
   ropeCoil(mb, BOAT_MOOR[0].x - 0.05, DECK, ARM_N + 0.02, 0.0095, 0x2f6fb0, 3);
+  // a few creels waiting near the west end
+  mb.push(); mb.translate(ARM_W + 0.11, DECK, ARM_N + 0.022); mb.rotateY(0.08);
+  creel(mb, -0.022, 0, 0, 0, rnd); creel(mb, 0.022, 0, 0, 0.05, rnd); creel(mb, 0, 0.0158, 0, -0.04, rnd);
+  mb.pop();
   ropeCoil(mb, BOAT_MOOR[1].x + 0.11, DECK, ARM_N + 0.02, 0.009, 0xf08a24, 2);
+}
+
+// Bunting strung between two lamp posts, sagging a little, with triangular flags.
+function bunting(mb, a, b, y, sag) {
+  const n = 14, pts = [];
+  for (let i = 0; i <= n; i++) {
+    const t = i / n;
+    pts.push([a[0] + (b[0] - a[0]) * t, y - sag * 4 * t * (1 - t), a[1] + (b[1] - a[1]) * t]);
+  }
+  mb.tube(pts, 0.0004, { ...O(0xf4f1e8), seg: 3 });
+  const cols = [0xd2473b, 0xf2c230, 0x2f6fb0, 0xf6f2ea, 0x3f9a5a, 0xf08a24];
+  const L = Math.hypot(b[0] - a[0], b[1] - a[1]), nf = Math.floor(L / 0.03);
+  for (let k = 1; k < nf; k++) {
+    const t = k / nf, x = a[0] + (b[0] - a[0]) * t, z = a[1] + (b[1] - a[1]) * t, yy = y - sag * 4 * t * (1 - t);
+    const dx = (b[0] - a[0]) / L * 0.0055, dz = (b[1] - a[1]) / L * 0.0055;
+    mb.poly([[x - dx, yy, z - dz], [x + dx, yy, z + dz], [x, yy - 0.011, z]], O(cols[k % cols.length], MAT.CANVAS));
+  }
+}
+
+function planter(mb, x, z, rnd) {
+  mb.boxMM(x - 0.012, G, z - 0.008, x + 0.012, G + 0.011, z + 0.008, O(0x8a6a4a, MAT.TIMBER, 0, { skip: ['bottom'] }));
+  mb.boxMM(x - 0.0105, G + 0.011, z - 0.0065, x + 0.0105, G + 0.0115, z + 0.0065, O(0x5a4632));
+  for (let k = 0; k < 6; k++) {
+    const px = x - 0.0075 + (k % 3) * 0.0075, pz = z + (k < 3 ? -0.0032 : 0.0032);
+    mb.sphere(px, G + 0.0135 + rnd() * 0.002, pz, 0.0042, { ...O(0x5f9a45, MAT.LEAF, 0.3), seg: 6, rings: 3 });
+  }
+  for (let k = 0; k < 7; k++) {
+    mb.sphere(x - 0.009 + k * 0.003, G + 0.0185 + rnd() * 0.002, z + (rnd() - 0.5) * 0.009, 0.0024, { ...O(rnd.pick([0xd2473b, 0xf2c230, 0xe86fa0, 0xf6f2ea]), MAT.LEAF, 0.3), seg: 5, rings: 3 });
+  }
 }
 
 // ---- 5. quay clutter ----------------------------------------------------------------------------------------
@@ -734,7 +763,7 @@ function clutter(mb, rnd) {
   // east of the shed: pallet of crates, crate stacks, creels, nets, barrels, rope
   pallet(mb, 1.86, G, -1.18, 0.08);
   for (const [dx, dz, n] of [[-0.012, -0.012, 3], [0.012, 0.012, 2], [0.014, -0.012, 3]]) {
-    crateStack(mb, 1.86 + dx, G + 0.0052, -1.18 + dz * 0.9, n, rnd, 0.08 + Math.PI / 2 * (dz > 0 ? 0 : 0));
+    crateStack(mb, 1.86 + dx, G + 0.0052, -1.18 + dz * 0.9, n, rnd, 0.08);
   }
   crateStack(mb, 1.815, G, -1.32, 4, rnd, 0.1);
   crateStack(mb, 1.85, G, -1.335, 3, rnd, -0.05);
@@ -789,10 +818,16 @@ function clutter(mb, rnd) {
   crateStack(mb, 1.64, G, -1.645, 1, rnd, -0.2);
   barrel(mb, 1.30, G, -1.64, 0x2d6db5);
 
-  // benches on the promenade, facing the water
-  bench(mb, (LAMPS[0][0] + LAMPS[1][0]) / 2, -0.84, 0);
-  bench(mb, (LAMPS[1][0] + LAMPS[2][0]) / 2, -0.84, 0);
+  // benches on the promenade, facing the water, each between two flower tubs
+  for (const bx of [(LAMPS[0][0] + LAMPS[1][0]) / 2, (LAMPS[1][0] + LAMPS[2][0]) / 2]) {
+    bench(mb, bx, -0.84, 0);
+    planter(mb, bx - 0.04, -0.842, rnd);
+    planter(mb, bx + 0.04, -0.842, rnd);
+  }
   bench(mb, 1.62, -1.62, Math.PI);
+  // bunting between the promenade lamps
+  const prom = LAMPS.filter(l => l[1] > KERB_Z).sort((p, q) => p[0] - q[0]);
+  for (let k = 0; k < prom.length - 1; k++) bunting(mb, [prom[k][0] + 0.004, prom[k][1]], [prom[k + 1][0] - 0.004, prom[k + 1][1]], G + 0.0815, 0.018);
 }
 
 // ---- build ------------------------------------------------------------------------------------------------

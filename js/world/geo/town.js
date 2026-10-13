@@ -10,7 +10,7 @@ import { B, TOWN_ROWS, CHURCH, landHeight } from '../layout.js';
 
 // ---- palette ---------------------------------------------------------------------------------------------
 const WALLS = [0x9e3b2a, 0xd9a441, 0xf2efe6, 0xa9c6dd, 0xa8d5bd, 0xe9b4b0, 0xecd27a, 0xb9c79a];
-const FALU = 0x9e3b2a, WHITE_WALL = 0xf2efe6;
+const FALU = 0x9e3b2a;
 const TILE_COLS = [0xc4603e, 0xb14f36, 0xd27a4f];
 const SLATE_COLS = [0x56606b, 0x4a535d];
 const DOORS = [0x2f5a4b, 0x2c4a6e, 0x8e2f25, 0xc9922f, 0x3c7f88, 0x6a4430];
@@ -62,8 +62,8 @@ function makePlan() {
     for (const [a, b, kind] of res) {
       if (kind === 'garden') {
         const gx = (a + b) / 2, gz = FRONT[ri] - 0.062;
-        trees.push(makeTree(r, gx + r.range(-0.006, 0.006), gz, 0.04 + r.range(0, 0.008)));
-        hedges.push([a + 0.006, b - 0.006, FRONT[ri] - 0.013, FRONT[ri] - 0.002]);
+        trees.push(makeTree(r, gx + r.range(-0.006, 0.006), gz, 0.046 + r.range(0, 0.01), r.range(0.035, 0.055)));
+        hedges.push([a + 0.006, b - 0.006, FRONT[ri] - 0.013, FRONT[ri] - 0.002, r() < 0.4 ? 'wall' : 'hedge']);
       }
       if (kind === 'church') {
         trees.push(makeTree(r, b - 0.045, FRONT[2] - 0.05, 0.042));
@@ -106,25 +106,37 @@ function makePlan() {
   }
 
   // trees on the hilltop behind the top row, peeking over its roofs
-  for (let k = 0; k < 14; k++) {
-    const x = -2.45 + k * (4.9 / 13) + r.range(-0.06, 0.06);
-    trees.push(makeTree(r, Math.max(-2.51, Math.min(2.51, x)), -2.522 + r.range(-0.008, 0.004), 0.042 + r.range(0, 0.01), r.range(0.025, 0.045)));
+  for (let k = 0; k < 15; k++) {
+    const x = -2.46 + k * (4.92 / 14) + r.range(-0.05, 0.05);
+    trees.push(makeTree(r, x, -2.515, 0.04 + r.range(0, 0.007), r.range(0.06, 0.095)));
   }
   // a few small trees on the banks between the rows
   for (const [x, z] of [[-2.36, -2.006], [-0.3, -2.008], [2.36, -2.004], [-1.25, -2.268], [0.15, -2.27], [2.02, -2.266]]) {
-    trees.push(makeTree(r, x, z, 0.028 + r.range(0, 0.006), 0.022));
+    trees.push(makeTree(r, x, z, 0.031 + r.range(0, 0.006), 0.024));
+  }
+  // round bushes dotted over the banks and the hilltop
+  const bushes = [];
+  for (const [x, z] of [[-1.92, -1.99], [-0.98, -1.985], [0.72, -1.995], [1.48, -1.99], [-2.05, -2.25], [-0.62, -2.255], [0.98, -2.245],
+    [1.62, -2.25], [-1.35, -2.53], [0.05, -2.535], [1.15, -2.53], [2.28, -2.535]]) {
+    const T = makeTree(r, x + r.range(-0.03, 0.03), z, 0.02 + r.range(0, 0.007), 0);
+    T.bush = true; T.sy = r.range(0.7, 0.85);
+    bushes.push(T);
   }
 
   // seagull perches: ridge tops spread over the town plus the spire tip
   const perches = [];
-  const want = [[0, -2.0], [0, -0.75], [0, 0.55], [0, 1.95], [1, -1.6], [1, -0.3], [1, 1.25], [1, 2.35], [2, -1.9], [2, -0.55], [2, 1.1], [2, 2.05]];
+  const want = [[0, -2.0], [0, -0.75], [0, 0.55], [0, 1.95], [1, -1.6], [1, -0.3], [1, 1.25], [1, 2.2], [2, -1.9], [2, -0.55], [2, 1.1], [2, 2.05]];
   for (const [ri, wx] of want) {
     let best = null;
     for (const H of houses) if (H.row === ri && (!best || Math.abs(H.cx - wx) < Math.abs(best.cx - wx))) best = H;
-    if (best) perches.push([round3(best.cx), round3(best.e + best.rh + 0.009), round3(best.cz)]);
+    if (!best) continue;
+    // on the ridge, away from the chimney
+    const t = best.chimney ? -Math.sign(best.chimney.u || 1) * 0.3 : 0;
+    const px = best.turned ? best.cx : best.cx + t * best.w, pz = best.turned ? best.cz + t * best.d : best.cz;
+    perches.push([round3(px), round3(best.e + best.rh + 0.009), round3(pz)]);
   }
   perches.push([round3(CHURCH.x), round3(church.tip), round3(CHURCH.z)]);
-  return { houses, trees, hedges, church, perches };
+  return { houses, trees, bushes, hedges, church, perches };
 }
 
 function round3(v) { return Math.round(v * 1000) / 1000; }
@@ -165,7 +177,7 @@ function finishHouse(r, H) {
   H.e = H.yf + n * STOREY + 0.008;
   H.ark = !H.turned && w >= 0.16 && d >= 0.135 && n >= 2 && r() < 0.45;
   // steep Nordic pitches; they also keep the front slopes out of the studio highlight seen from the usual views
-  const pitch = H.turned ? r.range(48, 58) : H.ark ? r.range(51, 56) : r.range(46, 55);
+  const pitch = H.turned ? r.range(48, 58) : H.ark ? r.range(52, 57) : r.range(46, 56);
   H.rh = (H.turned ? w / 2 : d / 2) * Math.tan(pitch * D2R);
   if (H.ark) {
     H.aw = r.range(0.05, 0.062);
@@ -195,11 +207,14 @@ function finishHouse(r, H) {
 }
 
 function makeTree(r, x, z, rad, trunk) {
+  const lim = B - 0.03 - rad * 1.12;
+  x = Math.max(-lim, Math.min(lim, x));
+  z = Math.max(-lim, z);
   const g = ground(x, z);
   const jit = [];
   for (let k = 0; k < 42; k++) jit.push(r.range(-0.09, 0.09));
   return {
-    x, z, g, r: rad, sy: r.range(0.95, 1.12), th: trunk !== undefined ? trunk : r.range(0.03, 0.05),
+    x, z, g, r: rad, sy: r.range(0.98, 1.22), th: trunk !== undefined ? trunk : r.range(0.03, 0.05),
     col: mixHex(r.pick(LEAVES), r() < 0.5 ? 0xffffff : 0x2d4a1e, r.range(0, 0.1)), rot: r.range(0, Math.PI * 2), jit,
     shade: r.range(0, 1000),
   };
@@ -235,9 +250,18 @@ export function build(mb) {
   for (const H of PLAN.houses) house(mb, H);
   church(mb, PLAN.church);
   for (const T of PLAN.trees) tree(mb, T);
-  for (const [a, b, z0, z1] of PLAN.hedges) {
-    const g = Math.min(ground(a, z1), ground(b, z1), ground(a, z0), ground(b, z0));
-    mb.boxMM(a, g - 0.006, z0, b, Math.max(ground(a, z0), ground(b, z0)) + 0.02, z1, { color: HEDGE, mat: MAT.LEAF, param: 0, skip: ['bottom'] });
+  for (const T of PLAN.bushes) tree(mb, T);
+  for (const [a, b, z0, z1, kind] of PLAN.hedges) {
+    const g = Math.min(ground(a, z1), ground(b, z1), ground(a, z0), ground(b, z0)) - 0.006;
+    const top = Math.max(ground(a, z0), ground(b, z0));
+    if (kind === 'hedge') mb.boxMM(a, g, z0, b, top + 0.02, z1, { color: HEDGE, mat: MAT.LEAF, param: 0, skip: ['bottom'] });
+    else {
+      const zc = (z0 + z1) / 2;
+      mb.boxMM(a, g, zc - 0.0035, b, top + 0.013, zc + 0.0035, { color: 0xeeeae1, mat: MAT.MASONRY, skip: ['bottom'] });
+      mb.boxMM(a - 0.0015, top + 0.013, zc - 0.005, b + 0.0015, top + 0.0165, zc + 0.005, { color: 0xd9d3c6, mat: MAT.PAINT, skip: ['bottom'] });
+      // a little garden of flowers behind it
+      mb.boxMM(a + 0.004, g, z0 - 0.012, b - 0.004, top + 0.006, z0 - 0.001, { color: 0x5f9a45, mat: MAT.LEAF, param: 0, skip: ['bottom'] });
+    }
   }
   mb.pop();
 }
@@ -260,8 +284,19 @@ function roofX(mb, x0, x1, z0, z1, e, h, R) {
   const xa = x0 - ovV, xb = x1 + ovV, za = z0 - ovE, zb = z1 + ovE;
   const ye = e - ovE * s, yr = e + h;
   const ro = { color: R.color, mat: R.mat };
-  mb.quad([xa, ye + th, zb], [xb, ye + th, zb], [xb, yr + th, cz], [xa, yr + th, cz], ro);
-  mb.quad([xb, ye + th, za], [xa, ye + th, za], [xa, yr + th, cz], [xb, yr + th, cz], ro);
+  // The slopes are flat, but their shading normals lean a little steeper than the slope (more at the eaves): a broad
+  // flat roof facing the camera would otherwise catch the whole studio highlight and turn white from the usual views.
+  const a = Math.atan(s);
+  const nR = [Math.cos(a + 7 * D2R), Math.sin(a + 7 * D2R)], nE = [Math.cos(a + 13 * D2R), Math.sin(a + 13 * D2R)];
+  const slope = (p0, p1, p2, p3, dz) => {
+    const base = mb.nv;
+    mb.vert(p0, [0, nE[0], nE[1] * dz], ro); mb.vert(p1, [0, nE[0], nE[1] * dz], ro);
+    mb.vert(p2, [0, nR[0], nR[1] * dz], ro); mb.vert(p3, [0, nR[0], nR[1] * dz], ro);
+    if (dz > 0) { mb.tri(base, base + 1, base + 2); mb.tri(base, base + 2, base + 3); }
+    else { mb.tri(base, base + 2, base + 1); mb.tri(base, base + 3, base + 2); }
+  };
+  slope([xa, ye + th, zb], [xb, ye + th, zb], [xb, yr + th, cz], [xa, yr + th, cz], 1);
+  slope([xa, ye + th, za], [xb, ye + th, za], [xb, yr + th, cz], [xa, yr + th, cz], -1);
   const fo = { color: R.trim, mat: MAT.PAINT };
   const fb = R.fb !== undefined ? R.fb : 0.003, bb = R.bb !== undefined ? R.bb : 0.004;
   mb.quad([xa, ye - fb, zb], [xb, ye - fb, zb], [xb, ye + th, zb], [xa, ye + th, zb], fo);
@@ -518,6 +553,12 @@ function church(mb, C) {
     archWindow(mb, u, fl + 0.032, 0.022, 0.066);
   }
   mb.pop();
+  mb.push(); mb.translate(0, 0, nz0); mb.rotateY(Math.PI);
+  for (let k = 0; k < nw; k++) {
+    const u = nx0 + 0.012 + (x1 - nx0 - 0.012) * (k + 0.5) / nw;
+    archWindow(mb, -u, fl + 0.032, 0.022, 0.066);
+  }
+  mb.pop();
   // east end: tall window and a round window in the gable
   mb.push(); mb.translate(x1, 0, 0); mb.rotateY(Math.PI / 2);
   const ncz = (nz0 + nz1) / 2;
@@ -607,8 +648,8 @@ const ICO = (() => {
 
 function tree(mb, T) {
   const { x, z, g, r, sy, th } = T;
-  mb.cylinder(x, g - 0.008, z, 0.0055, th + 0.008 + r * 0.5, { seg: 6, caps: false, color: TRUNK, mat: MAT.PAINT });
-  const cy = g + th + r * sy * 0.92;
+  if (!T.bush) mb.cylinder(x, g - 0.008, z, 0.0055, th + 0.008 + r * 0.5, { seg: 6, caps: false, color: TRUNK, mat: MAT.PAINT });
+  const cy = T.bush ? g + r * sy * 0.45 : g + th + r * sy * 0.92;
   mb.push(); mb.translate(x, cy, z); mb.rotateY(T.rot);
   const P = ICO.V.map((v, i) => { const k = 1 + T.jit[i]; return [v[0] * r * k, v[1] * r * sy * k * (v[1] < -0.5 ? 0.85 : 1), v[2] * r * k]; });
   let fi = 0;
@@ -624,7 +665,13 @@ function tree(mb, T) {
     const hsh = Math.sin(T.shade + fi * 12.9898) * 43758.5453;
     const col = mixHex(T.col, (hsh - Math.floor(hsh)) < 0.5 ? 0xffffff : 0x000000, 0.05 * ((hsh * 7) - Math.floor(hsh * 7)));
     const base = mb.nv;
-    for (const p of order) mb.vert(p, n, { color: col, mat: MAT.LEAF, param: 0.3 + 0.7 * Math.max(0, Math.min(1, p[1] / (r * sy) * 0.5 + 0.5)) });
+    for (const p of order) {
+      const rl = Math.hypot(p[0], p[1] / sy, p[2]) || 1;
+      const m = [n[0] * 0.45 + p[0] / rl * 0.55, n[1] * 0.45 + p[1] / sy / rl * 0.55, n[2] * 0.45 + p[2] / rl * 0.55];
+      const ml = Math.hypot(m[0], m[1], m[2]);
+      const param = T.bush ? 0.15 : 0.3 + 0.7 * Math.max(0, Math.min(1, p[1] / (r * sy) * 0.5 + 0.5));
+      mb.vert(p, [m[0] / ml, m[1] / ml, m[2] / ml], { color: col, mat: MAT.LEAF, param });
+    }
     mb.tri(base, base + 1, base + 2);
     fi++;
   }

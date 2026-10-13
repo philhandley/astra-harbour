@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Jelly Harbour</title>
+<meta name="description" content="Times tables and number bonds in a harbour made of jelly.">
+<meta name="theme-color" content="#ece6dc">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="assets/icons/favicon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="assets/icons/apple-touch-icon-180.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Lexend:wght@300;400;500;600;700&display=swap">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<canvas id="stage" aria-label="A harbour inside a block of jelly"></canvas>
+<div id="labels" aria-hidden="true"></div>
+
+<header class="masthead">
+  <div class="eyebrow">Material Studies</div>
+  <h1 class="title">Jelly <span>Harbour.</span></h1>
+  <p class="blurb">Two cranes, a little feeder ship and a busy tug, working a harbour set in a block of jelly sea.</p>
+</header>
+
+<div class="pill" id="pill"><i></i><span>WebGPU · Live</span></div>
+
+<aside class="panel" id="panel" aria-label="Harbour controls">
+  <button class="sheet-handle" id="sheetHandle" aria-label="Show or hide the controls"><span></span></button>
+  <div class="panel-body" id="panelBody"></div>
+</aside>
+
+<footer class="howto" id="howto">
+  <div class="eyebrow">How to play</div>
+  <p>Drag the water to make waves · Drag the block's side to tip the jelly · Throw a lifebuoy · Drag empty space to turn, pinch or scroll to zoom</p>
+</footer>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<div class="fallback" id="fallback" hidden>
+  <div class="fallback-card">
+    <div class="eyebrow">Material Studies</div>
+    <h2>The jelly needs WebGPU.</h2>
+    <p id="fallbackWhy">This browser can't draw the 3D harbour, so here is the flat version. The maths games work just the same.</p>
+    <button class="btn dark" id="fallbackGo">Open the flat harbour</button>
+  </div>
+</div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

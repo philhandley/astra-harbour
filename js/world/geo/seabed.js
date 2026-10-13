@@ -490,8 +490,7 @@ export function build(mb, ctx) {
   M = mb;
   mb.push();
   mb.set({ obj: 0, param: 0, mat: MAT.PAINT });
-  const rand = makeRand(7311);
-
+  RES.length = 0;
   for (const [x, z] of FEED) reserve(x, z, 0.05);
   for (const [x, z] of MOORING_BUOYS) reserve(x, z, 0.06);
   reserve(CHANNEL_BUOY[0], CHANNEL_BUOY[1], 0.06);
@@ -505,7 +504,7 @@ export function build(mb, ctx) {
   const { ringFar, D } = anchor(arand);
   chain(arand, ringFar, D);
   tuft(arand, SEABED_SPOTS.anchor[0] - D[0] * 0.17 + 0.03, SEABED_SPOTS.anchor[1] - D[2] * 0.17, { n: 5, spread: 0.02, hMin: 0.03, hMax: 0.055 });
-  scatter(arand, SEABED_SPOTS.anchor[0] + 0.12, SEABED_SPOTS.anchor[1] - 0.12, 4);
+  scatter(arand, SEABED_SPOTS.anchor[0] + 0.19, SEABED_SPOTS.anchor[1] - 0.15, 4, 0.006, 0.016, 0.04);
   tyre(makeRand(4401));
 
   // weed: thick along the quay wall foot and the breakwater toe, sparse out in the basin
@@ -537,7 +536,7 @@ export function build(mb, ctx) {
   // a few near the cut faces, where they show through the side of the block
   for (const [x, z, kelp] of [[-0.52, 2.40, 0.6], [0.30, 2.30, 0.3], [0.66, 2.44, 0.5], [-1.55, 2.42, 0.5], [1.55, 2.36, 0.5],
     [-0.12, 2.47, 0.5], [0.98, 2.40, 0.4], [-0.95, 2.36, 0.3],
-    [-2.44, 1.15, 0.5], [-2.43, 0.22, 0.4], [2.44, 1.95, 0.6]]) {
+    [-2.44, 1.15, 0.5], [-2.43, 0.22, 0.4], [-2.44, 1.78, 0.5], [-2.42, -0.45, 0.5], [2.44, 1.95, 0.6]]) {
     if (open(x, z, 0.02)) sites.push({ x, z, n: 10, spread: 0.045, kelp, stones: true });
   }
   for (const s of sites) {
@@ -562,7 +561,7 @@ export function build(mb, ctx) {
   const [tx, tz] = SEABED_SPOTS.tyre;
   const stars = [
     [0.42, 2.34, 'orange'], [-0.22, 2.18, 'red'], [-1.15, -0.60, 'purple'], [1.55, 0.36, 'orange'], [0.52, 1.08, 'red'],
-    [tx + 0.07, tz - 0.06, 'purple'], [SEABED_SPOTS.anchor[0] + 0.13, SEABED_SPOTS.anchor[1] - 0.05, 'orange'],
+    [tx + 0.07, tz - 0.06, 'purple'], [SEABED_SPOTS.anchor[0] + 0.16, SEABED_SPOTS.anchor[1] + 0.06, 'orange'],
     [2.02, -0.55, 'red'], [-2.18, 1.72, 'orange'], [0.52, -0.34, 'purple'],
   ];
   for (const [x, z, c] of stars) {
