@@ -39,4 +39,4 @@ Read `ENGINE.md` first: it is the contract for every model builder and system (c
 - Run `python tools/build_sw.py` after any change, before committing.
 
 ## Publish
-Own repo `philhandley/astra-harbour` (needs Phil's say-so to create), GitHub Pages from main root, live at https://philhandley.github.io/astra-harbour/. To update: `python tools/build_sw.py`, commit, push.
+Own repo `philhandley/astra-harbour` (created 13 Oct 2026), GitHub Pages from main root, live at https://philhandley.github.io/astra-harbour/. To update: `python tools/build_sw.py`, commit, `git push`; Pages redeploys in about a minute.
