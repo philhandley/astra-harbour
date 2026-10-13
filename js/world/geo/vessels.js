@@ -129,7 +129,7 @@ function hullFrame(H, x, y, side) {
   let u = cross(v, w);
   if (u[0] * side < 0) u = mul(u, -1);
   const p = [x, y, side * hb];
-  return { p, u: side > 0 ? u : u, v, w, at: (a, b, c) => add(p, add(mul(u, a), add(mul(v, b), mul(w, c)))) };
+  return { p, u, v, w, at: (a, b, c) => add(p, add(mul(u, a), add(mul(v, b), mul(w, c)))) };
 }
 
 // ---- small part helpers ----------------------------------------------------------------------------
@@ -205,7 +205,7 @@ function propeller(mb, R, hubR, hubL, o) {
   mb.push();
   mb.rotateZ(-Math.PI / 2); // local +y -> +x
   const h = hubL / 2;
-  mb.lathe(0, 0, [[0, -h - hubR * 1.1], [hubR * 0.55, -h - hubR * 0.85], [hubR * 0.9, -h - hubR * 0.3], [hubR, -h], [hubR, h], [hubR * 0.85, h + 0.0005], [0, h + 0.0005]], { seg: 10, ...o });
+  mb.lathe(0, 0, [[0, -h - hubR * 0.75], [hubR * 0.55, -h - hubR * 0.6], [hubR * 0.9, -h - hubR * 0.25], [hubR, -h], [hubR, h], [hubR * 0.85, h + 0.0005], [0, h + 0.0005]], { seg: 10, ...o });
   mb.pop();
   const c = R * 0.42;
   for (let b = 0; b < 4; b++) {
@@ -239,7 +239,7 @@ const shipBm = y => {
 };
 const shipXF = y => (y >= 0 ? 0.90 + 0.06 * clamp01(y / 0.115) : 0.90 - 0.055 * Math.pow(clamp01(-y / SHIP.draft), 3));
 const shipXA = y => {
-  if (y >= -0.004) return -0.955 - 0.005 * clamp01((y + 0.004) / 0.079);
+  if (y >= -0.004) return -0.962 - 0.005 * clamp01((y + 0.004) / 0.079);
   if (y >= -0.07) return -0.915;
   const t = (-0.07 - y) / 0.015;
   return -0.915 + 0.03 * t * t;
@@ -301,7 +301,10 @@ function buildShip(mb) {
   for (let k = kP; k <= n; k++) { fl.push(P[jF][k]); fr.push(stb(P, jF, k)); }
   ladder(mb, fl, fr, [0, 1, 0], deckO);
   mb.poly([P[jD][kP], P[jD][kS], P[jF][kS], P[jF][kP]], { color: WHITE });
-  // forecastle bulwark capping
+  // forecastle bulwark: white inner lining and capping
+  const lining = [];
+  for (let j = jF; j <= jT; j++) lining.push(offsetPlan(P[j].slice(kP, kS + 1), -0.0012, false));
+  surface(mb, lining, { color: WHITE, mat: MAT.PAINT });
   mb.tube(P[jT].slice(kP, kS + 1), 0.0022, { seg: 5, color: WHITE, mat: MAT.PAINT });
 
   // bulbous bow
@@ -322,10 +325,12 @@ function buildShip(mb) {
   mb.push();
   mb.translate(PROP_LOCAL[0], PROP_LOCAL[1], 0);
   mb.rotateZ(Math.PI / 2); // local +y -> -x
-  mb.lathe(0, 0, [[0.012, -0.024], [0.0115, -0.01], [0.0095, 0.0075], [0.007, 0.0085]], { seg: 10, ...hull });
+  mb.lathe(0, 0, [[0.0125, -0.026], [0.0118, -0.017], [0.0102, -0.0085], [0.006, -0.0078]], { seg: 10, ...hull });
   mb.pop();
-  fin(mb, [-0.950, -0.979, -0.002, 0.0085], [-0.952, -0.977, -0.080, 0.0075], hull);
-  mb.box(-0.957, -0.006, 0, 0.012, 0.007, 0.007, hull);
+  fin(mb, [-0.951, -0.986, -0.001, 0.0078], [-0.953, -0.982, -0.079, 0.0066], hull);
+  // stern flagstaff with a little red ensign
+  mb.cylinder(-0.962, SHIP.deckY, 0, 0.0013, 0.046, { seg: 6, color: WHITE });
+  mb.poly([[-0.9627, 0.108, 0], [-0.981, 0.1075, 0], [-0.981, 0.1185, 0], [-0.9627, 0.119, 0]], { color: 0xc8402f });
 
   // anchors in hawse pipes
   for (const side of [-1, 1]) {
@@ -348,18 +353,16 @@ function buildShip(mb) {
     mb.cylinder(bb[0] + dx, FC_DECK, 0, 0.0042, 0.0125, { seg: 10, ...bo });
     mb.cylinder(bb[0] + dx, FC_DECK + 0.0125, 0, 0.0054, 0.0018, { seg: 10, ...bo });
   }
-  mb.box(0.938, FC_DECK + 0.004, 0, 0.008, 0.012, 0.016, { color: WHITE });
+  torus(mb, [0.944, 0.1105, 0], [0, 0, 1], [0, 1, 0], 0.0048, 0.0017, 10, 5, bo);
   for (const side of [-1, 1]) {
     const wz = side * 0.046;
     mb.box(0.826, FC_DECK, wz, 0.022, 0.006, 0.026, { color: 0x6f7a80 });
     mb.push(); mb.translate(0.826, FC_DECK + 0.011, wz); mb.rotateX(Math.PI / 2);
     mb.cylinder(0, -0.011, 0, 0.0065, 0.022, { seg: 10, color: 0x2b2e33, mat: MAT.STEEL });
     mb.pop();
-    const hp = hullFrame(SHIP_H, 0.858, 0.054, side);
     const deckHole = [0.872, FC_DECK + 0.0005, side * 0.062];
     mb.tube([[0.835, FC_DECK + 0.010, wz], [0.855, FC_DECK + 0.004, side * 0.055], deckHole], 0.0016, { seg: 4, color: 0x3a3d42, mat: MAT.STEEL });
     mb.cylinder(deckHole[0], FC_DECK, deckHole[2], 0.004, 0.003, { seg: 8, ...bo });
-    void hp;
     mb.box(0.745, FC_DECK, side * 0.052, 0.020, 0.005, 0.024, { color: 0x6f7a80 });
     mb.push(); mb.translate(0.745, FC_DECK + 0.010, side * 0.052); mb.rotateX(Math.PI / 2);
     mb.cylinder(0, -0.010, 0, 0.0058, 0.020, { seg: 10, color: 0x4b5a72, mat: MAT.STEEL });
@@ -406,7 +409,7 @@ function buildShip(mb) {
   ];
   const go = { color: GLASS, mat: MAT.GLASS };
   for (const [li, L] of levels.entries()) {
-    mb.boxMM(L.x0, L.y0, -L.hz, L.x1, L.y1 - 0.003, L.hz, { color: WHITE, skip: ['bottom'] });
+    mb.boxMM(L.x0, L.y0, -L.hz, L.x1, L.y1 - 0.003, L.hz, { color: WHITE, skip: ['bottom', 'top'] });
     mb.boxMM(L.x0 - 0.003, L.y1 - 0.003, -L.hz - 0.003, L.x1 + 0.003, L.y1, L.hz + 0.003, { color: 0xe9e7e0 });
     const yc = (L.y0 + L.y1) / 2 + 0.001;
     winRowX(mb, L.x1 + 0.0006, -L.hz + 0.008, L.hz - 0.008, yc, 0.014, 0.012, 0.026, go);
@@ -415,7 +418,7 @@ function buildShip(mb) {
     if (li === 0) for (const s of [-1, 1]) mb.poly([[L.x1 + 0.0007, L.y0, s * 0.085], [L.x1 + 0.0007, L.y0, s * 0.069], [L.x1 + 0.0007, L.y0 + 0.03, s * 0.069], [L.x1 + 0.0007, L.y0 + 0.03, s * 0.085]], { color: 0x8a949b });
   }
   // wheelhouse
-  mb.boxMM(WH.x0, WH.y0, -WH.hz, WH.x1, WH.y1, WH.hz, { color: WHITE, skip: ['bottom'] });
+  mb.boxMM(WH.x0, WH.y0, -WH.hz, WH.x1, WH.y1, WH.hz, { color: WHITE, skip: ['bottom', 'top'] });
   mb.boxMM(WH.x0 - 0.004, WH.y1, -WH.hz - 0.005, WH.x1 + 0.008, WH.y1 + 0.004, WH.hz + 0.005, { color: 0xe9e7e0 });
   const wy0 = 0.265, wy1 = 0.287;
   mb.poly([[WH.x1 + 0.0006, wy0, -WH.hz + 0.004], [WH.x1 + 0.0006, wy0, WH.hz - 0.004], [WH.x1 + 0.0006, wy1, WH.hz - 0.004], [WH.x1 + 0.0006, wy1, -WH.hz + 0.004]], go);
@@ -439,7 +442,6 @@ function buildShip(mb) {
   mb.cylinder(rl[0], rl[1] - 0.004, rl[2], 0.0085, 0.004, { seg: 10, color: WHITE, mat: MAT.STEEL });
   mb.beam([rl[0], rl[1] - 0.034, -0.032], [rl[0], rl[1] - 0.034, 0.032], 0.003, 0.003, { color: WHITE, mat: MAT.STEEL });
   for (const s of [-1, 1]) mb.sphere(rl[0], rl[1] - 0.0305, s * 0.030, 0.0024, { seg: 6, rings: 3, color: 0xfff4d0, mat: MAT.LAMP, param: 0.3 });
-  mb.beam([rl[0], rl[1] - 0.034, 0], [rl[0] + 0.03, roofY, 0], 0.0024, 0.0024, { color: WHITE });
 
   // funnel: navy with a yellow band and a black top, raked aft
   mb.push();
@@ -497,7 +499,7 @@ function buildShip(mb) {
   // ship propeller (spins about +x; placed at PROP_LOCAL)
   mb.push();
   mb.set({ obj: OBJ.PROP, mat: MAT.STEEL, color: BRONZE });
-  propeller(mb, 0.035, 0.0095, 0.016, {});
+  propeller(mb, 0.035, 0.0095, 0.014, {});
   mb.pop();
 }
 
@@ -618,7 +620,7 @@ function buildTug(mb) {
 
   // deckhouse (red), wheelhouse (white, windows all round), funnel, mast
   const dh = { x0: -0.070, x1: 0.074, hz: 0.043, y0: TUG_FORE_DECK, y1: 0.088 };
-  mb.boxMM(dh.x0, dh.y0, -dh.hz, dh.x1, dh.y1 - 0.002, dh.hz, { color: TUG_RED, skip: ['bottom'] });
+  mb.boxMM(dh.x0, dh.y0, -dh.hz, dh.x1, dh.y1 - 0.002, dh.hz, { color: TUG_RED, skip: ['bottom', 'top'] });
   mb.boxMM(dh.x0 - 0.002, dh.y1 - 0.002, -dh.hz - 0.002, dh.x1 + 0.002, dh.y1, dh.hz + 0.002, { color: WHITE });
   const go = { color: GLASS, mat: MAT.GLASS };
   for (const s of [-1, 1]) {
@@ -627,7 +629,7 @@ function buildTug(mb) {
   }
   winRowX(mb, dh.x1 + 0.0006, -0.03, 0.03, 0.074, 0.008, 0.008, 0.02, go);
   const wh = { x0: -0.022, x1: 0.058, hz: 0.036, y0: 0.088, y1: 0.118 };
-  mb.boxMM(wh.x0, wh.y0, -wh.hz, wh.x1, wh.y1, wh.hz, { color: WHITE, skip: ['bottom'] });
+  mb.boxMM(wh.x0, wh.y0, -wh.hz, wh.x1, wh.y1, wh.hz, { color: WHITE, skip: ['bottom', 'top'] });
   mb.boxMM(wh.x0 - 0.003, wh.y1, -wh.hz - 0.004, wh.x1 + 0.007, wh.y1 + 0.004, wh.hz + 0.004, { color: TUG_RED });
   const wy0 = 0.097, wy1 = 0.112;
   mb.poly([[wh.x1 + 0.0006, wy0, -wh.hz + 0.003], [wh.x1 + 0.0006, wy0, wh.hz - 0.003], [wh.x1 + 0.0006, wy1, wh.hz - 0.003], [wh.x1 + 0.0006, wy1, -wh.hz + 0.003]], go);
@@ -719,7 +721,7 @@ function buildYacht(mb, obj, stripe) {
   const n = 26;
   const P = hullGrid(YACHT_H, Y_ROWS, n), N = gridNormals(P), C = P[0].length;
   const J = y => Y_ROWS.indexOf(y);
-  const j0 = J(0.0185), j1 = J(0.0235), jT = Y_ROWS.length - 1, jC = J(0.002);
+  const j0 = J(0.0185), j1 = J(0.0235), jT = Y_ROWS.length - 1;
   const hw = { mat: MAT.HULL, color: WHITE };
   emitGrid(mb, P, N, 0, j0, 0, C - 1, hw);
   emitGrid(mb, P, N, j0, j1, 0, C - 1, { mat: MAT.HULL, color: stripe });
@@ -728,7 +730,6 @@ function buildYacht(mb, obj, stripe) {
   const bl = [], br = [];
   for (let k = 0; k <= n; k++) { bl.push(P[0][k]); br.push(stb(P, 0, k)); }
   ladder(mb, bl, br, [0, -1, 0], hw);
-  void jC;
   // cambered deck
   const D = [];
   for (let k = 0; k <= n; k++) {
@@ -806,7 +807,8 @@ function buildYacht(mb, obj, stripe) {
     const xs = [-0.118, -0.07, -0.02, 0.03, 0.086];
     for (const x of xs.slice(0, -1)) mb.beam([x, yd(x), s * hbD(x)], [x, yd(x) + rh, s * hbD(x)], 0.0011, 0.0011, ro);
     mb.tube(xs.map(x => [x, yd(x) + rh, s * hbD(x)]), 0.0005, { ...ro, seg: 3 });
-    mb.tube(xs.slice(0, 2).map(x => [x, yd(x) + rh, s * hbD(x)]).concat([[-0.124, yd(-0.124) + rh, s * 0.012]]), 0.0008, ro);
+    mb.tube([[-0.104, yd(-0.104) + rh, s * hbD(-0.104)], [-0.118, yd(-0.118) + rh, s * hbD(-0.118)], [-0.1235, yd(-0.124) + rh, s * 0.016], [-0.1235, yd(-0.124) + rh, s * 0.004]], 0.0008, ro);
+    mb.beam([-0.1235, yd(-0.124), s * 0.016], [-0.1235, yd(-0.124) + rh, s * 0.016], 0.0011, 0.0011, ro);
   }
   mb.pop();
 }
@@ -890,7 +892,7 @@ function buildFishBoat(mb, obj, hullColor) {
 
   // wheelhouse at the stern: white with windows, coloured roof, little mast with a light and a gull perch
   const W = FB_WH;
-  mb.boxMM(W.x0, FB_DECK, -W.hz, W.x1, W.y1, W.hz, { color: WHITE, skip: ['bottom'] });
+  mb.boxMM(W.x0, FB_DECK, -W.hz, W.x1, W.y1, W.hz, { color: WHITE, skip: ['bottom', 'top'] });
   mb.boxMM(W.x0 - 0.004, W.y1, -W.hz - 0.005, W.x1 + 0.007, W.y1 + 0.005, W.hz + 0.005, { color: hullColor, mat: MAT.STEEL });
   const go = { color: GLASS, mat: MAT.GLASS };
   winRowX(mb, W.x1 + 0.0006, -W.hz + 0.006, W.hz - 0.006, 0.083, 0.027, 0.020, 0.0345, go);
@@ -988,7 +990,7 @@ function buildMooringBuoy(mb, obj) {
 }
 
 // =================================================================================================
-export function build(mb) {
+export function build(mb, ctx) { // eslint-disable-line no-unused-vars
   mb.push();
   buildShip(mb);
   buildTug(mb);

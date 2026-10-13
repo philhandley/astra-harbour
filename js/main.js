@@ -32,9 +32,12 @@ async function boot() {
   audio.initAudio();
   audio.setSound(setting('sound'));
   const canvas = document.getElementById('stage');
+  if (q.has('flat')) { showFallback('(Testing the flat harbour.)'); return; }
   let scene;
   try {
-    scene = await Scene.create(canvas, { reducedMotion: reduced, onLost: () => showFallback('The graphics card stopped answering.') });
+    const low = q.get('q') === 'low' || (navigator.hardwareConcurrency || 8) <= 4;
+    scene = await Scene.create(canvas, { reducedMotion: reduced, causticGrid: low ? 130 : 200, onLost: () => showFallback('The graphics card stopped answering.') });
+    if (low) scene.renderScale = 0.8;
   } catch (err) {
     console.warn('WebGPU unavailable:', String(err));
     showFallback(String(err).includes('no-webgpu') ? 'This browser has no WebGPU.' : 'The graphics card could not start WebGPU.');
@@ -119,11 +122,29 @@ function layoutShift() {
 
 // ---- the loop ---------------------------------------------------------------------------------------------------
 let last = performance.now(), uiTick = 0, smokeT = 0;
+const perf = { n: 0, sum: 0, steps: 0, skip: 60 };
+// If frames run slow (a tablet's GPU), draw at a lower resolution: up to three steps down.
+function adaptQuality(frameS) {
+  if (q.get('q') === 'high' || perf.steps >= 3) return;
+  if (perf.skip > 0) { perf.skip--; return; }
+  perf.n++; perf.sum += frameS;
+  if (perf.n < 90) return;
+  const avg = perf.sum / perf.n;
+  perf.n = 0; perf.sum = 0;
+  if (avg > 0.026) {
+    perf.steps++; perf.skip = 30;
+    app.scene.renderScale = (app.scene.renderScale || 1) * 0.8;
+    app.scene.resize();
+    console.log('HARBOUR quality step', perf.steps, 'avg frame', (avg * 1000).toFixed(1), 'ms, scale', app.scene.renderScale.toFixed(2));
+  }
+}
 function loop(now) {
   requestAnimationFrame(loop);
-  if (document.hidden) { last = now; return; }
-  const real = Math.min(0.05, (now - last) / 1000);
+  if (document.hidden) { last = now; perf.skip = 30; return; }
+  const raw = (now - last) / 1000;
+  const real = Math.min(0.05, raw);
   last = now;
+  adaptQuality(raw);
   const dt = app.paused ? 0 : real;
   const s = app.scene;
   app.cranes.update(dt);
@@ -199,6 +220,7 @@ app.startGame = async (kind, key, level) => {
   key = key || last.key || (kind === 'tables' ? '2' : '10');
   level = level || suggestLevel(kind, key);
   app.mode = kind;
+  document.body.classList.add('in-game');
   const token = { alive: true };
   app.game = token;
   app.stage.clearLabels();
@@ -209,7 +231,16 @@ app.startGame = async (kind, key, level) => {
     onLevel: l => app.startGame(kind, key, l),
     onBack: () => app.goHome(),
   });
-  const G = kind === 'tables' ? new Tables(app) : new Bonds(app);
+  // The game talks to the panel and the stage through guards: once this game is abandoned (Back, or another
+  // game started), any late step throws AbortError instead of touching the new game's card or the harbour.
+  const guard = obj => new Proxy(obj, { get(t, k) {
+    const v = t[k];
+    if (typeof v !== 'function') return v;
+    return (...a) => { if (!token.alive) throw new AbortError(); return v.apply(t, a); };
+  } });
+  const view = Object.create(app);
+  view.ui = guard(app.ui); view.stage = guard(app.stage);
+  const G = kind === 'tables' ? new Tables(view) : new Bonds(view);
   try {
     for (;;) {
       const next = await G.run(key, level);
@@ -236,9 +267,11 @@ app.goHome = () => {
   app.stage.clearLabels();
   app.stage.onSlotTap = null;
   app.mode = 'home';
+  document.body.classList.remove('in-game');
+  app.ui.home();
+  if (app.flat) return;
   app.cranes.speed = 1;
   app.scene.camera.go('home');
-  app.ui.home();
   // hand the cargo back to the automatic day if the ship is waiting at the berth
   if (app.harbour.atBerth && !app.harbour.workDone) app.autowork.run(app.harbour);
 };
@@ -257,3 +290,8 @@ function showFallback(why) {
 }
 
 boot();
+
+// Offline support: the service worker precaches the whole app (not on the 8600 dev server, so edits show at once).
+if ('serviceWorker' in navigator && location.port !== '8600' && !q.has('nosw')) {
+  addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(err => console.warn('service worker', String(err))));
+}

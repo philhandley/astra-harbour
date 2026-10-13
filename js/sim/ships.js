@@ -51,7 +51,8 @@ export class Harbour {
       { id: OBJ.CHANNEL_BUOY, x: CHANNEL_BUOY[0], z: CHANNEL_BUOY[1], float: new Floater(0.04, 0.04, { k: 40, c: 5, maxTilt: 0.3, gain: 1.4 }) },
       ...MOORING_BUOYS.map((b, i) => ({ id: OBJ.MOOR_1 + i, x: b[0], z: b[1], float: new Floater(0.03, 0.03, { k: 45, c: 5, maxTilt: 0.3, gain: 1.4 }) })),
     ];
-    this.boats = BOAT_MOOR.map((m, i) => ({ id: i ? OBJ.BOAT_B : OBJ.BOAT_A, x: m.x, z: m.z, yaw: m.yaw, home: m, float: new Floater(FISHBOAT.length / 2, FISHBOAT.beam / 2, { k: 24, c: 5, maxTilt: 0.1 }), speed: 0, away: false }));
+    this.boats = BOAT_MOOR.map((m, i) => ({ id: i ? OBJ.BOAT_B : OBJ.BOAT_A, x: m.x, z: m.z, yaw: m.yaw, home: m, float: new Floater(FISHBOAT.length / 2, FISHBOAT.beam / 2, { k: 24, c: 5, maxTilt: 0.1 }), speed: 0, away: false, prop: 0 }));
+    this.boatsAway = false;
     this.voyagePath = this.buildVoyage();
   }
 
@@ -232,7 +233,11 @@ export class Harbour {
   // The tug follows waypoints (position spline, heading blended separately: tugs can crab sideways).
   *tugRoute(pts, speed) {
     this.tugBusy = true;
-    const t = this.tug;
+    yield* this.vesselRoute(this.tug, pts, speed);
+    this.tugBusy = false;
+  }
+
+  *vesselRoute(t, pts, speed) {
     const path = new Path();
     for (let i = 0; i < pts.length - 1; i++) {
       const a = pts[i], b = pts[i + 1];
@@ -267,9 +272,50 @@ export class Harbour {
       const dirMove = [Math.cos(p.yaw), -Math.sin(p.yaw)];
       t.prop = (f[0] * dirMove[0] + f[1] * dirMove[1]) * (v / speed);
       t.wash = Math.abs(t.prop) * 0.4;
+      t.speed = v;
     }
-    t.prop = 0; t.wash = 0;
-    this.tugBusy = false;
+    t.prop = 0; t.wash = 0; t.speed = 0;
+  }
+
+  // The fishing boats' parade (end of a bonds round): out past the lighthouse, a turn in front of the
+  // breakwater, and home again. The ship stays at her berth meanwhile.
+  boatParade() {
+    if (this.boatsAway) return;
+    this.boatsAway = true;
+    this.hold = true;
+    const [A, Bt] = this.boats;
+    const out = (b, x0) => [
+      { x: b.home.x, z: b.home.z, yaw: 0 },
+      { x: x0 - 0.04, z: 0.20, yaw: 0 },
+      { x: x0 - 0.36, z: 0.22, yaw: Math.PI },
+      { x: 0.74, z: 0.24, yaw: Math.PI },
+      { x: 0.55, z: 0.80, yaw: Math.PI * 1.5 },
+      { x: 0.88, z: 1.38, yaw: Math.PI * 1.92 },
+      { x: 1.85, z: 1.46, yaw: 0 },
+      { x: 2.22, z: 1.80, yaw: Math.PI / 2 },
+      { x: 1.90, z: 2.18, yaw: Math.PI },
+      { x: 1.00, z: 2.14, yaw: Math.PI },
+      { x: 0.40, z: 1.95, yaw: Math.PI * 1.2 },
+      { x: 0.24, z: 1.40, yaw: Math.PI * 1.45 },
+      { x: 0.25, z: 0.90, yaw: Math.PI * 0.5 },
+      { x: 0.58, z: 0.30, yaw: Math.PI * 0.2 },
+      { x: 1.00, z: 0.20, yaw: 0 },
+      { x: b.home.x, z: 0.20, yaw: 0 },
+      { x: b.home.x, z: b.home.z, yaw: 0 },
+    ];
+    const self = this;
+    const run = function* (b, delay) {
+      yield waitUntil(() => self.atBerth && !self.tugBusy);
+      yield waitTime(delay);
+      b.away = true;
+      yield* self.vesselRoute(b, out(b, b.home.x), 0.22);
+      Object.assign(b, { x: b.home.x, z: b.home.z, yaw: b.home.yaw });
+      b.away = false;
+    };
+    // the west boat leads out and home again, so neither has to pass the other near the pier
+    const ha = this.dir.run(run(A, 0), 'boatA');
+    const hb = this.dir.run(run(Bt, 6.5), 'boatB');
+    Promise.all([ha.promise, hb.promise]).then(() => { this.boatsAway = false; this.hold = false; });
   }
 
   horn() { this.emit('horn'); }
@@ -313,7 +359,7 @@ export class Harbour {
     // yachts swing on their moorings
     for (const y of this.yachts) {
       y.ang += dt * 0.06 * Math.sin(sc.time * 0.13 + y.id);
-      const r = 0.13;
+      const r = 0.20;
       const x = y.buoy.x + Math.cos(y.ang) * r, z = y.buoy.z + Math.sin(y.ang) * r;
       const yaw = Math.atan2(-(y.buoy.z - z), y.buoy.x - x); // bow toward the buoy
       y.yaw = yaw;
@@ -325,6 +371,7 @@ export class Harbour {
       sc.setObject(b.id, [b.x, sea + b.float.h, b.z], b.float.quat(Math.sin(sc.time * 0.3 + b.id) * 0.4));
     }
     for (const b of this.boats) {
+      b.prop = b.prop || 0;
       b.float.update(sim, b.x, b.z, b.yaw, dt);
       sc.setObject(b.id, [b.x, sea + b.float.h, b.z], b.float.quat(b.yaw));
     }

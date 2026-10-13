@@ -34,7 +34,11 @@ const cranes = new CraneYard(scene, cargo);
 cranes.speed = 3;
 const harbour = new Harbour(scene, cranes);
 let workCalls = 0;
-harbour.on('workStart', () => { workCalls++; setTimeout(() => harbour.finishWork(), 0); });
+harbour.on('workStart', () => {
+  workCalls++;
+  if (workCalls === 2) { harbour.boatParade(); phaseLog.push('parade'); }
+  setTimeout(() => harbour.finishWork(), 0);
+});
 harbour.start();
 
 const HL = SHIP.length / 2, HB = SHIP.beam / 2;
@@ -64,7 +68,7 @@ const stats = { quay: 9, edge: 9, yacht: 9, buoy: 9, boat: 9 };
 const fails = {};
 function fail(kind, msg) { fails[kind] = (fails[kind] || 0) + 1; if (fails[kind] <= 3) log('  hit', kind, msg); }
 
-function checkHull(name, pts, draft, isShipAtBerth) {
+function checkHull(name, pts, draft, isShipAtBerth, skipBoats = false) {
   for (const [x, z] of pts) {
     const cq = z - QUAY_Z;
     if (cq < stats.quay) stats.quay = cq;
@@ -75,7 +79,10 @@ function checkHull(name, pts, draft, isShipAtBerth) {
     if (breakwaterHeight(x, z) > -draft - 0.02) fail(name + '-breakwater', `(${x.toFixed(2)}, ${z.toFixed(2)}) phase ${harbour.phase}`);
     if (floorHeight(x, z) > -draft - 0.01) fail(name + '-ground', `(${x.toFixed(2)}, ${z.toFixed(2)})`);
     if (inPier(x, z, 0.01)) fail(name + '-pier', `(${x.toFixed(2)}, ${z.toFixed(2)})`);
-    for (const r of boatRects) if (inside(r, [x, z])) fail(name + '-fishboat', `(${x.toFixed(2)}, ${z.toFixed(2)})`);
+    if (!skipBoats) for (const b of harbour.boats) {
+      const r = world([[-FISHBOAT.length / 2, -FISHBOAT.beam / 2], [FISHBOAT.length / 2, -FISHBOAT.beam / 2], [FISHBOAT.length / 2, FISHBOAT.beam / 2], [-FISHBOAT.length / 2, FISHBOAT.beam / 2]], b.x, b.z, b.yaw);
+      if (inside(r, [x, z])) fail(name + '-fishboat', `(${x.toFixed(2)}, ${z.toFixed(2)})`);
+    }
     for (const y of harbour.yachts) {
       const o = scene.getObject(y.id); const d = Math.hypot(o.pos[0] - x, o.pos[2] - z) - 0.14;
       if (d < stats.yacht) stats.yacht = d;
@@ -92,7 +99,9 @@ function checkHull(name, pts, draft, isShipAtBerth) {
 const dt = 1 / 30;
 let t = 0, loops = 0, lastPhase = '', phaseT = 0, minShipTug = 9;
 const phaseLog = [];
+let paraded = 0;
 harbour.on('phase', p => { phaseLog.push(`${p}@${t.toFixed(1)}`); if (p === 'work' && lastPhase) loops++; lastPhase = p; });
+const paradeAt = Number(q.get('parade') || 1);
 harbour.on('horn', () => phaseLog.push(`horn@${t.toFixed(1)}`));
 const t0 = performance.now();
 while (loops < LOOPS && t < 600) {
@@ -114,11 +123,25 @@ while (loops < LOOPS && t < 600) {
     let dmin = 9;
     for (const p of tp) for (const r of sp) { const d = Math.hypot(p[0] - r[0], p[1] - r[1]); if (d < dmin) dmin = d; }
     if (dmin < minShipTug && harbour.phase !== 'castingOff' && harbour.phase !== 'berthing') minShipTug = dmin;
+    // the fishing boats on parade: rubble, pier, buoys, yachts, the ship, the tug and each other
+    const fb = [[-FISHBOAT.length / 2, -FISHBOAT.beam / 2], [FISHBOAT.length / 2 - 0.06, -FISHBOAT.beam / 2], [FISHBOAT.length / 2, 0], [FISHBOAT.length / 2 - 0.06, FISHBOAT.beam / 2], [-FISHBOAT.length / 2, FISHBOAT.beam / 2]];
+    const polys = harbour.boats.map(b => world(fb, b.x, b.z, b.yaw));
+    harbour.boats.forEach((b, i) => {
+      if (!b.away) return;
+      const pts = densify(polys[i], 0.03);
+      checkHull('boat' + i, pts, 0.04, false, true);
+      for (const p of pts) {
+        if (inside(shipPoly, p)) fail('boat-ship', `boat ${i} (${p[0].toFixed(2)}, ${p[1].toFixed(2)})`);
+        if (inside(tugPoly, p)) fail('boat-tug', `boat ${i}`);
+        if (inside(polys[1 - i], p)) fail('boat-boat', `(${p[0].toFixed(2)}, ${p[1].toFixed(2)})`);
+      }
+    });
   }
   await new Promise(r => setTimeout(r, 0));
 }
 log('simulated', t.toFixed(0), 's,', loops, 'loops in', Math.round(performance.now() - t0), 'ms; work() called', workCalls, 'times');
 log('phases', phaseLog.slice(0, 24).join(' '));
+log('boats home:', harbour.boats.map(b => `${b.x.toFixed(2)},${b.z.toFixed(2)} away=${b.away}`).join(' '), 'boatsAway', harbour.boatsAway);
 log('min clearance: quay', stats.quay.toFixed(3), 'edge', stats.edge.toFixed(3), 'yacht', stats.yacht.toFixed(3), 'buoy', stats.buoy.toFixed(3), 'ship-tug (cruising)', minShipTug.toFixed(3));
 const keys = Object.keys(fails);
 if (!keys.length && loops >= LOOPS) log('PASS no collisions in', loops, 'loops');

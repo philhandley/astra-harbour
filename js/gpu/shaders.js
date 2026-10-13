@@ -182,7 +182,7 @@ fn matSurface(mat: u32, base0: vec3f, param: f32, wp: vec3f, lp: vec3f, n0: vec3
       let bump = smoothstep(0.0, 0.25, fy) * (1.0 - 0.45 * smoothstep(0.6, 1.0, fy));
       let v = 0.86 + 0.14 * hash2(vec2f(row, floor(along * 70.0 + row * 0.5)));
       s.base = base0 * (0.72 + 0.28 * bump) * v * (0.9 + 0.1 * smoothstep(0.0, 0.12, fx) * smoothstep(1.0, 0.88, fx));
-      s.rough = 0.65;
+      s.rough = 0.88; s.spec = 0.02;
     }
     case 4u: { // timber planks (param < .5: planks along x, else along z)
       let across = select(lp.z, lp.x, param > 0.5);
@@ -285,11 +285,11 @@ fn matSurface(mat: u32, base0: vec3f, param: f32, wp: vec3f, lp: vec3f, n0: vec3
       let id = vec2f(row, floor(along * 55.0 + row * 0.5));
       let fy = fract(lp.y * 120.0);
       s.base = base0 * (0.82 + 0.25 * hash2(id)) * (0.7 + 0.3 * smoothstep(0.0, 0.2, fy));
-      s.rough = 0.55; s.spec = 0.08;
+      s.rough = 0.75; s.spec = 0.035;
     }
     case 19u: { // leaves
       s.base = base0 * (0.75 + 0.4 * fbm2(lp.xz * 60.0 + lp.y * 50.0));
-      s.rough = 0.9;
+      s.rough = 0.95; s.spec = 0.015;
     }
     case 20u: { // mussels
       let b = noise2(wp.xz * 300.0 + wp.y * 250.0);
@@ -337,7 +337,7 @@ fn lightSurface(sf: Surf, wp: vec3f, bp: vec3f, V: vec3f) -> vec3f {
   var col = base * (sun + amb + wrap);
   let H = normalize(L + V);
   let gloss = mix(900.0, 8.0, sf.rough);
-  let spec = pow(max(dot(n, H), 0.0), gloss) * sf.spec * (gloss + 8.0) / 8.0 * sh;
+  let spec = pow(max(dot(n, H), 0.0), gloss) * sf.spec * min((gloss + 8.0) / 8.0, 10.0) * sh;
   col += vec3f(1.0, 0.97, 0.92) * spec * 1.4;
   // a little studio reflection on glossy things
   let fres = pow(1.0 - max(dot(n, V), 0.0), 5.0);
@@ -443,23 +443,85 @@ struct VOut {
 
 fn deform(kind: u32, p: vec3f, flex: f32, anim: vec2f) -> vec3f {
   var q = p;
-  if (kind == 1u) { // fish: body wave toward the tail (tail at -x)
-    let w = sin(anim.x * 9.0 - p.x * 30.0) * flex * flex * 0.25;
-    q.z += w * max(-p.x, 0.0) * 4.0;
-  } else if (kind == 2u) { // gull: wings flap about the body axis (wings along z)
-    let a = sin(anim.x) * anim.y * 0.9 + (1.0 - anim.y) * 0.05;
-    let side = sign(p.z);
-    let r = abs(p.z);
-    q.y += r * sin(a) * flex;
-    q.z = side * mix(r, r * cos(a), flex);
-  } else if (kind == 3u) { // jellyfish: bell pulse, arms trail
-    let pulse = sin(anim.x);
-    let bell = 1.0 - flex;
-    q.x *= 1.0 + 0.16 * pulse * bell;
-    q.z *= 1.0 + 0.16 * pulse * bell;
-    q.y *= 1.0 - 0.10 * pulse * bell;
-    q.x += sin(anim.x * 0.7 + p.y * 40.0) * 0.012 * flex;
-    q.z += cos(anim.x * 0.6 + p.y * 37.0) * 0.012 * flex;
+  if (kind == 1u) {
+    // Fish (js/life/fish.js): template length 1, nose at +0.5, tail tip at -0.5; flex 0 at the head .. 1 at the tail tip.
+    // anim.x = tail-beat phase (radians), anim.y = turn curl (-1..1, + curls the tail toward +z).
+    let wave = sin(anim.x - flex * 4.2) * (0.012 + 0.11 * flex * flex);
+    q.z += wave + anim.y * 0.2 * flex * flex;
+    q.x -= abs(wave) * 0.12 * flex;
+  } else if (kind == 2u) {
+    // Herring gull (js/life/gulls.js): template length 1, +x head, wings along z from the shoulder (x 0.02, y 0.08,
+    // |z| 0.12); flex 0 on the body .. 1 at the wingtip; legs hang below y = -0.162.
+    // anim.y >= 0, flying: anim.y = 2k + a with a in [0, 1) the flap amount and k / 8 the legs lowered (0 tucked .. 8 down);
+    //   anim.x = flap phase.
+    // anim.y < 0, perched or stooping: -anim.y = wing fold (0 spread .. 1 folded along the back), legs down,
+    //   anim.x = head turn (radians, positive turns the bill toward -z).
+    var amt = 0.0; var legs = 1.0; var fold = 0.0; var head = 0.0;
+    if (anim.y < 0.0) { fold = min(-anim.y, 1.0); head = anim.x; }
+    else { let k = floor(anim.y * 0.5); amt = clamp(anim.y - 2.0 * k, 0.0, 1.0); legs = clamp(k / 8.0, 0.0, 1.0); }
+    if (flex > 0.0) {
+      let s = select(-1.0, 1.0, p.z >= 0.0);
+      // wing coordinates from the shoulder: u outward along the span, c forward along the chord, h up
+      let u = (abs(p.z) - 0.12) * (1.0 - 0.52 * fold);
+      let c = (p.x - 0.02) * (1.0 - 0.6 * fold);
+      let h = p.y - 0.08;
+      // flap: the arm swings about the shoulder, the hand follows a little later (and droops a touch when gliding)
+      let a1 = (0.10 + amt * 0.85 * sin(anim.x)) * (1.0 - fold);
+      let a2 = (-0.10 + amt * 0.45 * sin(anim.x - 1.1)) * (1.0 - fold);
+      let uw = 0.48 * (1.0 - 0.52 * fold);
+      var uu = u * cos(a1) - h * sin(a1);
+      var hh = u * sin(a1) + h * cos(a1);
+      if (u > uw) {
+        let a = a1 + a2; let du = u - uw;
+        uu = uw * cos(a1) + du * cos(a) - h * sin(a);
+        hh = uw * sin(a1) + du * sin(a) + h * cos(a);
+      }
+      // fold: tip the leading edge down over the flank, then sweep the wing back along the body
+      let dr = fold * 1.0;
+      let c1 = c * cos(dr) + hh * sin(dr);
+      let h1 = hh * cos(dr) - c * sin(dr);
+      let th = fold * 1.6;
+      let c2 = c1 * cos(th) - uu * sin(th);
+      let u2 = c1 * sin(th) + uu * cos(th);
+      // the folded primaries slope down to rest over the tail
+      let rear = clamp(-c2 / 0.5, 0.0, 1.0);
+      q = vec3f(0.02 + c2, 0.08 + h1 - fold * (0.02 + 0.045 * rear), s * (0.12 + u2));
+    } else {
+      if (p.y < -0.162) {
+        // legs fold back under the tail in flight
+        let tk = 1.0 - legs;
+        let a = -tk * 1.45;
+        let d = vec2f(p.x + 0.02, p.y + 0.12) * (1.0 - 0.3 * tk);
+        q.x = -0.02 + d.x * cos(a) - d.y * sin(a);
+        q.y = -0.12 + d.x * sin(a) + d.y * cos(a) + tk * 0.05;
+        q.z = p.z * (1.0 - 0.5 * tk);
+      }
+      let hw = smoothstep(0.2, 0.32, p.x) * head;
+      if (hw != 0.0) {
+        let dx = q.x - 0.2; let qz = q.z;
+        q.x = 0.2 + dx * cos(hw) + qz * sin(hw);
+        q.z = qz * cos(hw) - dx * sin(hw);
+      }
+    }
+  } else if (kind == 3u) {
+    // Moon jellyfish (js/life/jellies.js): template bell radius 1, rim at y 0, apex at y 0.45; flex 0 on the bell rising
+    // to 1 at the arm and tentacle tips. anim.x = pulse phase, anim.y = sway seed.
+    let sq = 0.5 + 0.5 * sin(anim.x);
+    let k = sq * sq;                                   // 0 relaxed .. 1 squeezed
+    let rimW = 1.0 - 0.7 * clamp(p.y / 0.45, 0.0, 1.0);
+    let rs = 1.0 - 0.15 * k * rimW + 0.05 * (1.0 - k) * flex;
+    q.x *= rs; q.z *= rs;
+    if (p.y > 0.0) { q.y = p.y * (1.0 + 0.14 * k); }
+    let ang = atan2(p.z, p.x);
+    let f2 = flex * flex;
+    q.x += sin(anim.x * 0.5 + anim.y + ang * 2.0 - flex * 2.6) * 0.10 * f2;
+    q.z += cos(anim.x * 0.43 + anim.y * 1.3 + ang * 3.0 - flex * 2.2) * 0.10 * f2;
+    q.y -= 0.07 * k * flex;
+  } else if (kind == 4u) {
+    // bubble: a slow jelly wobble
+    q.x *= 1.0 + 0.08 * sin(anim.x);
+    q.y *= 1.0 - 0.08 * sin(anim.x);
+    q.z *= 1.0 + 0.06 * cos(anim.x * 1.3);
   }
   return q;
 }
@@ -496,9 +558,33 @@ struct FOut { @location(0) color: vec4f };
   var sf = matSurface(i.mat, i.col.rgb, i.col.a, i.wp, i.lp, n);
   var c: vec3f;
   if (i.kind == 3u || i.kind == 4u) {
-    // glassy: jellyfish and bubbles glow softly with a bright rim
-    let rim = pow(1.0 - abs(dot(n, V)), 2.0);
-    c = srgb2lin(i.col.rgb) * (0.55 + 0.25 * max(dot(n, normalize(F.lightDir.xyz)), 0.0)) + vec3f(0.9, 0.95, 1.0) * rim * 0.9;
+    // Glassy (jellyfish, bubbles): the gel's own colour shows through the middle, a milky body, a bright Fresnel rim
+    // and a small glint. Moon jellyfish bells (flex 0) show their four pink horseshoes through the top.
+    let L = normalize(F.lightDir.xyz);
+    let ndv = abs(dot(n, V));
+    let rim = pow(1.0 - ndv, 2.2);
+    let gel = srgb2lin(F.waterB.rgb);
+    var base = srgb2lin(i.col.rgb);
+    var clear = select(0.62, 0.8, i.kind == 4u);
+    if (i.kind == 3u && i.col.a < 0.02) {
+      let xz = i.lp.xz;
+      let ca = PI * 0.25 + round((atan2(xz.y, xz.x) - PI * 0.25) / (PI * 0.5)) * PI * 0.5;
+      let ctr = vec2f(cos(ca), sin(ca)) * 0.4;
+      let dv = xz - ctr;
+      let d = length(dv);
+      let ring = 1.0 - smoothstep(0.03, 0.065, abs(d - 0.16));
+      let outward = dot(dv / max(d, 1e-4), ctr / 0.4);
+      let shoe = ring * (1.0 - smoothstep(0.35, 0.8, outward));
+      base = mix(base, srgb2lin(vec3f(1.0, 0.42, 0.66)), shoe);
+      clear = clear * (1.0 - 0.85 * shoe);
+      // the margin is a little milkier
+      clear = clear * (1.0 - 0.45 * smoothstep(0.75, 0.98, length(xz)));
+    }
+    let lit = 0.45 + 0.4 * max(dot(n, L), 0.0) + 0.3 * min(causticAt(i.bp), 1.5);
+    c = mix(base * lit, gel * 1.08, clear * ndv);
+    c += vec3f(0.85, 0.95, 1.0) * rim * select(0.7, 1.1, i.kind == 4u);
+    let H = normalize(L + V);
+    c += vec3f(1.0, 0.98, 0.95) * pow(max(dot(n, H), 0.0), 90.0) * select(0.8, 2.0, i.kind == 4u);
   } else {
     c = lightSurface(sf, i.wp, i.bp, V);
   }

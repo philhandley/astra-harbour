@@ -160,7 +160,7 @@ export class CraneYard {
     const topOf = w => (w.kind === 'ship' ? () => this.shipDeckY(w.bay) + hTop : () => QUAY_TOP + 0.002 + hTop);
     // go
     if (this.boomsUp) yield* this.boomRoutine(c, 0);
-    yield* this.hoistTo(c, TRAVEL_Y + 0.12);
+    if (c.spreaderY < TRAVEL_Y + 0.1) yield* this.hoistTo(c, TRAVEL_Y + 0.12);
     yield* this.travelTo(c, this.bayWorldX(srcBay));
     yield* this.trolleyTo(c, zOf(src));
     yield* this.lowerTo(c, topOf(src));

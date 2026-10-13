@@ -51,7 +51,7 @@ export class Panel {
           </button>
         </div>
       </section>
-      <section class="sec">
+      ${a.flat ? '' : `<section class="sec">
         <div class="sec-h"><span class="eyebrow">The harbour</span><small id="phaseSmall"></small></div>
         <div class="grid3">
           <button class="btn dark" id="bCast">Cast off</button>
@@ -79,12 +79,14 @@ export class Panel {
           <button class="btn" id="bSound">Sound ${setting('sound') ? 'on' : 'off'}</button>
           <button class="btn" id="bView">View</button>
         </div>
-      </section>
+      </section>`}
       <section class="sec">
         <div class="sec-h"><span class="eyebrow">Harbour log</span><small>${Object.keys(P().done).length} of ${PATCHES.length} patches</small></div>
         <div class="log">${PATCHES.map(p => `<span class="mini ${P().done[p.id] ? '' : 'off'}" style="background:${p.colour}" title="${p.title}">${p.label}</span>`).join('')}</div>
       </section>`);
     this.body.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', () => a.startGame(b.dataset.go)));
+    this.mode = 'home';
+    if (a.flat) return;
     this.body.querySelectorAll('[data-flav]').forEach(b => b.addEventListener('click', () => {
       a.setFlavour(b.dataset.flav);
       this.body.querySelectorAll('[data-flav]').forEach(x => x.classList.toggle('on', x === b));
@@ -175,9 +177,10 @@ export class Panel {
   clearAct() { const e = this.$('#qAct'); if (e) e.innerHTML = ''; }
 
   // Answer tiles; resolves with the chosen value. Wrong ones can be marked later with markTile().
-  tiles(values) {
+  tiles(values, nopes = []) {
     const e = this.$('#qAct');
-    e.innerHTML = `<div class="tiles">${values.map(v => `<button class="tile" data-v="${v}">${v}</button>`).join('')}</div>`;
+    if (!e) return Promise.reject(new AbortError());
+    e.innerHTML = `<div class="tiles">${values.map(v => `<button class="tile ${nopes.includes(v) ? 'nope' : ''}" data-v="${v}">${v}</button>`).join('')}</div>`;
     return this.wait(done => {
       e.querySelectorAll('.tile').forEach(b => b.addEventListener('click', () => {
         if (b.classList.contains('nope') || e.dataset.locked) return;
@@ -191,6 +194,7 @@ export class Panel {
   // One big action button (Load a row / Add a crate / Next). Resolves on each tap; call again for the next tap.
   big(label, icon = 'crane', style = '') {
     const e = this.$('#qAct');
+    if (!e) return Promise.reject(new AbortError());
     e.innerHTML = `<button class="bigbtn ${style}" id="qBig">${icon === 'crane' ? CRANE : icon === 'crate' ? CRATE : ''}<span>${label}</span></button>`;
     const b = this.$('#qBig');
     return this.wait(done => b.addEventListener('click', () => { if (!b.disabled) done(true); }, { once: true }));
@@ -200,9 +204,10 @@ export class Panel {
   // End-of-round patch card; resolves on "Next".
   patch(p, lines, first) {
     const e = this.$('.qcard');
+    if (!e) return Promise.reject(new AbortError());
     e.innerHTML = `
       <div class="patch">
-        <div class="badge" style="background:${p.colour}">${p.label}</div>
+        <div class="badge ${p.label.length > 3 ? 'long' : ''}" style="background:${p.colour}">${p.label}</div>
         <h3>${first ? 'New patch!' : 'Well done!'}</h3>
         <p><b>${p.title}</b></p>
         <p style="margin-top:8px">${lines}</p>

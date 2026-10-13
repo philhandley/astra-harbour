@@ -1,0 +1,56 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>End-to-end test</title>
+<style>body{margin:0;font:12px monospace}iframe{width:1280px;height:800px;border:0;display:block}</style>
+<iframe id="f"></iframe>
+<pre id="out"></pre>
+<script type="module">
+// Plays whole rounds of the real app inside an iframe by tapping its buttons, like a child would.
+// ?game=tables&key=5&level=1&wrong=1 (wrong=1 taps a wrong tile first each time, to exercise Show me)
+// Run: bash tools/shot.sh e2e "dev/test-e2e.html?game=tables&key=5&level=1" 1280,1000 300
+import { shotReady } from './shotkit.js';
+const q = new URLSearchParams(location.search);
+const out = document.getElementById('out');
+const log = (...a) => { const s = a.join(' '); console.log('E2E ' + s); out.textContent += s + '\n'; };
+const f = document.getElementById('f');
+const game = q.get('game') || 'tables', key = q.get('key') || '5', level = q.get('level') || '1';
+const errors = [];
+f.src = `../index.html?game=${game}&key=${key}&level=${level}&e2e=1`;
+const t0 = performance.now();
+await new Promise(r => f.addEventListener('load', r, { once: true }));
+const w = f.contentWindow;
+w.addEventListener('error', e => errors.push(String(e.message)));
+const ce = w.console.error.bind(w.console);
+w.console.error = (...a) => { errors.push(a.map(String).join(' ')); ce(...a); };
+const wrongFirst = q.get('wrong') === '1';
+let taps = 0, answers = 0, wrongs = 0, done = false, lastQ = '';
+const seenWrong = new Set();
+const deadline = t0 + Number(q.get('secs') || 280) * 1000;
+while (!done && performance.now() < deadline) {
+  await new Promise(r => setTimeout(r, 250));
+  const d = w.document;
+  const qt = d.querySelector('#qText');
+  if (qt && qt.textContent !== lastQ) { lastQ = qt.textContent; log(`${((performance.now() - t0) / 1000).toFixed(1)}s Q: ${lastQ}`); }
+  const home = d.querySelector('#pHome');
+  if (home) { log('patch card:', d.querySelector('.patch h3').textContent, '/', d.querySelector('.patch b').textContent); done = true; break; }
+  const big = d.querySelector('#qBig');
+  if (big && !big.disabled) { big.click(); taps++; continue; }
+  const act = d.querySelector('#qAct');
+  const tiles = [...d.querySelectorAll('.tile:not(.nope)')];
+  if (tiles.length && act && !act.dataset.locked && w.__answer !== undefined) {
+    const ans = String(w.__answer);
+    const key = lastQ + '|' + ans;
+    if (wrongFirst && !seenWrong.has(key)) {
+      const bad = tiles.find(t => t.dataset.v !== ans);
+      if (bad) { seenWrong.add(key); bad.click(); wrongs++; continue; }
+    }
+    const good = tiles.find(t => t.dataset.v === ans);
+    if (good) { good.click(); answers++; w.__answer = undefined; }
+  }
+}
+const secs = ((performance.now() - t0) / 1000).toFixed(1);
+log(`taps ${taps}, answers ${answers}, wrong taps ${wrongs}, ${secs}s`);
+if (errors.length) log('console errors:', errors.slice(0, 5).join(' | '));
+log(done && !errors.length ? 'PASS' : 'FAIL', done ? '' : '(round did not finish)');
+shotReady();
+</script>

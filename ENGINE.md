@@ -75,7 +75,7 @@ Containers, fish crates, lifebuoys, fish, gulls, jellyfish and bubbles are GPU i
 
 ## Instanced templates
 A builder may export `templates()` returning `[{ name, mesh }]` where `mesh` is `new MeshBuilder()...finish()`. A template's vertices are in its own local frame; vertex colour pure white (0xffffff) means "take the instance tint". `col.a` (= `param`) is the flex weight used by the animated kinds (fish tail, gull wing tip, jellyfish arms).
-Systems push `{ template, data, count, shadow }` into `scene.instanceGroups`, where `data` is an ArrayBuffer of 48-byte instances: pos f32x3 (in the parent's frame), scale f32, quat f32x4, tint unorm8x4 (rgb + a: 1 = full tint), info uint8x4 (parent obj, kind, 0, 0), anim f32x2. Kinds: 0 rigid, 1 fish, 2 gull (anim.y = flap amount), 3 jellyfish, 4 bubble.
+Systems push `{ template, data, count, shadow }` into `scene.instanceGroups`, where `data` is an ArrayBuffer of 48-byte instances: pos f32x3 (in the parent's frame), scale f32, quat f32x4, tint unorm8x4 (rgb + a; pure-white vertices always take the tint rgb; a below 1 also blends the other vertex colours toward the tint by 1 - a, so use a = 255 normally), info uint8x4 (parent obj, kind, 0, 0), anim f32x2. Kinds: 0 rigid, 1 fish, 2 gull (anim.y = flap amount), 3 jellyfish, 4 bubble.
 
 ## Testing a builder
 - Server: `python tools/serve.py 8600` (no-cache).

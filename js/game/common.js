@@ -25,6 +25,7 @@ export async function ask(ui, ans, opts, factId, onWrong) {
   const nopes = [];
   let first = true;
   for (;;) {
+    window.__answer = ans; // for the end-to-end test
     const v = await ui.tiles(opts, nopes);
     if (v === ans) {
       ui.markTile(v, 'right');

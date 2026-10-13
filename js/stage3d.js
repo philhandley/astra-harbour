@@ -61,7 +61,7 @@ export class Stage3D {
       while (!(h.atBerth && !h.workDone)) { await sleep(0.25); if (h.phase === 'atSea') h.callIn(); }
     }
     while (!a.cranes.idle()) await sleep(0.2);
-    a.cranes.speed = 1.7;
+    a.cranes.speed = 2.6;
   }
 
   async prepTables(t) {
