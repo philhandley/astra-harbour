@@ -52,6 +52,8 @@ export function attachInput(app) {
   }
 
   cv.addEventListener('contextmenu', e => e.preventDefault());
+  // iPad Safari: stop the page itself zooming on a pinch (the pinch zooms the harbour instead)
+  for (const ev of ['gesturestart', 'gesturechange', 'gestureend']) document.addEventListener(ev, e => e.preventDefault(), { passive: false });
 
   cv.addEventListener('pointerdown', e => {
     cv.setPointerCapture(e.pointerId);

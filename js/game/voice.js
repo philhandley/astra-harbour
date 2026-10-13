@@ -24,7 +24,8 @@ export function spoken(text) {
     .replace(/\s\+\s/g, ' plus ')
     .replace(/\s[−-]\s/g, ' take away ')
     .replace(/=/g, ' is ')
-    .replace(/\?(?=\s*(times|plus|take away|is|shared))|(?<=(times|plus|take away|is|shared by)\s*)\?/g, ' what ')
+    .replace(/\?(\s*(times|plus|take away|is|shared))/g, ' what$1')
+    .replace(/((times|plus|take away|is|shared by)\s*)\?/g, '$1 what ')
     .replace(/\s+/g, ' ').trim();
 }
 

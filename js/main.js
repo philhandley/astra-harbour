@@ -44,7 +44,7 @@ async function boot() {
     return;
   }
   app.scene = scene;
-  scene.setFlavour(setting('flavour') || 'seaglass');
+  scene.setFlavour('seaglass');
   app.setFirmness(1);
   placeDefaults(scene);
 

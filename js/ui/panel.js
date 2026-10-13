@@ -1,6 +1,5 @@
 // The frosted panel: the harbour controls at home, and the question card while a game runs.
 // Game-facing calls return promises; abort() rejects any that are waiting (the Back button).
-import { FLAVOURS } from '../world/env.js';
 import { LEVELS, PATCHES, P, roundsDone, setting } from '../game/progress.js';
 import { say, stop as stopVoice } from '../game/voice.js';
 
@@ -66,13 +65,6 @@ export class Panel {
         <div class="status"><span class="meter"><i id="meter"></i></span><span id="status">Working cargo</span></div>
       </section>
       <section class="sec">
-        <div class="sec-h"><span class="eyebrow">Flavour</span></div>
-        <div class="swatches">${Object.entries(FLAVOURS).map(([id, f]) => `<button class="swatch ${a.scene && a.scene.flavour === id ? 'on' : ''}" data-flav="${id}"><i style="background:${f.swatch}"></i>${f.name}</button>`).join('')}</div>
-      </section>
-      <section class="sec">
-        <label class="slider">Firmness <output id="oFirm"></output><input type="range" id="sFirm" min="0.4" max="1.6" step="0.01"></label>
-        <label class="slider">Wave damping <output id="oDamp"></output><input type="range" id="sDamp" min="0.05" max="1.5" step="0.01"></label>
-        <label class="slider">Tide <output id="oTide"></output><input type="range" id="sTide" min="-1" max="1" step="0.01"></label>
         <div class="grid4">
           <button class="btn" id="bReset">Reset</button>
           <button class="btn" id="bPause">Pause</button>
@@ -87,10 +79,6 @@ export class Panel {
     this.body.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', () => a.startGame(b.dataset.go)));
     this.mode = 'home';
     if (a.flat) return;
-    this.body.querySelectorAll('[data-flav]').forEach(b => b.addEventListener('click', () => {
-      a.setFlavour(b.dataset.flav);
-      this.body.querySelectorAll('[data-flav]').forEach(x => x.classList.toggle('on', x === b));
-    }));
     this.$('#bCast').addEventListener('click', () => a.castOffOrCallIn());
     this.$('#bHorn').addEventListener('click', () => a.horn());
     this.$('#bFeed').addEventListener('click', () => a.feed());
@@ -98,14 +86,6 @@ export class Panel {
     this.$('#bPause').addEventListener('click', e => { a.togglePause(); e.target.textContent = a.paused ? 'Play' : 'Pause'; });
     this.$('#bSound').addEventListener('click', e => { const on = a.toggleSound(); e.target.textContent = `Sound ${on ? 'on' : 'off'}`; });
     this.$('#bView').addEventListener('click', () => a.resetView());
-    const bind = (id, out, get, set, fmt) => {
-      const s = this.$(id), o = this.$(out);
-      s.value = get(); o.textContent = fmt(get());
-      s.addEventListener('input', () => { set(Number(s.value)); o.textContent = fmt(Number(s.value)); });
-    };
-    bind('#sFirm', '#oFirm', () => a.firmness, v => a.setFirmness(v), v => v.toFixed(2));
-    bind('#sDamp', '#oDamp', () => a.damping, v => a.setDamping(v), v => v.toFixed(2));
-    bind('#sTide', '#oTide', () => a.tide, v => a.setTide(v), v => `${v >= 0 ? '+' : '−'}${Math.round(Math.abs(v) * 10)} cm`);
     this.mode = 'home';
     this.refreshHarbour();
   }

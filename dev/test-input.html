@@ -76,12 +76,11 @@ check('right-drag orbits', Math.abs(scene.camera.goal.yaw - yaw0) > 0.2, `yaw ${
 cv.dispatchEvent(new w.WheelEvent('wheel', { clientX: 400, clientY: 400, deltaY: -300, bubbles: true, cancelable: true }));
 check('wheel zooms', scene.camera.goal.dist < dist0 * 0.9, `dist ${dist0.toFixed(2)} -> ${scene.camera.goal.dist.toFixed(2)}`);
 
-// 5. the panel: horn, feed, flavour
+// 5. the panel: horn, feed
 w.document.getElementById('bHorn').click();
 w.document.getElementById('bFeed').click();
-w.document.querySelector('[data-flav="blueberry"]').click();
 await wait(2.5);
-check('flavour changes', scene.flavour === 'blueberry');
+check('no flavour or slider controls on the panel', !w.document.querySelector('[data-flav]') && !w.document.querySelector('input[type=range]'));
 check('fed tally counts', Number(w.document.getElementById('tFed').textContent) >= 1);
 check('no console errors', errors.length === 0, errors.slice(0, 3).join(' | '));
 log(fail ? 'FAIL' : 'PASS', `${pass} passed, ${fail} failed`);
