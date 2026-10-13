@@ -55,7 +55,11 @@ export class Habitat {
     return out;
   }
   open(x, z, clear = 0.02) { return this.wallDist(x, z) > clear && this.sim.isWater(x, z); }
-  surfaceAt(x, z) { return this.scene.sea + this.sim.heightAt(x, z); }
+  // (clamped, so the creatures stay sensible even if the water simulation misbehaves)
+  surfaceAt(x, z) {
+    const h = this.sim.heightAt(x, z);
+    return this.scene.sea + (h > 0.12 ? 0.12 : h < -0.12 ? -0.12 : h === h ? h : 0);
+  }
 
   // The lowest point a swimmer's centre may reach from above at (x, z): just under the surface, and under any hull
   // (with a sloping skirt round each hull so a fish slides down before it reaches the side).
@@ -158,7 +162,8 @@ export class Habitat {
       const dx = x - h.x, dz = z - h.z;
       if (Math.abs(dx) > h.reach + 0.12 || Math.abs(dz) > h.reach + 0.12) continue;
       const lx = dx * h.ca - dz * h.sa, lz = dx * h.sa + dz * h.ca;
-      if (Math.abs(lx) < h.halfL + 0.1 && Math.abs(lz) < h.halfB + 0.1) t = Math.max(t, sea + (h.halfL > 0.5 ? 0.6 : h.halfL > 0.1 ? 0.5 : 0.2));
+      // the ship's radar stands about 0.39 above the waterline, yacht masts 0.35, buoys are small
+      if (Math.abs(lx) < h.halfL + 0.1 && Math.abs(lz) < h.halfB + 0.1) t = Math.max(t, sea + (h.halfL > 0.5 ? 0.52 : h.halfL > 0.1 ? 0.45 : 0.2));
     }
     return t;
   }

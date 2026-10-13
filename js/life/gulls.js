@@ -14,6 +14,7 @@ const CRUISE = 0.27;
 const W = 0xffffff;           // white plumage takes the instance tint
 const GREY = 0x93a1ad, BLACK = 0x1b1c20, BILL = 0xf0bf2c, RED = 0xd42f28, LEG = 0xe9a29c;
 const TWO_PI = Math.PI * 2;
+const VESSELS = [OBJ.SHIP, OBJ.TUG, OBJ.YACHT_1, OBJ.YACHT_2, OBJ.BOAT_A, OBJ.BOAT_B, OBJ.CHANNEL_BUOY, OBJ.MOOR_1, OBJ.MOOR_2, OBJ.MOOR_3];
 
 // ---- template -----------------------------------------------------------------------------------------------------
 export function gullTemplate() {
@@ -532,10 +533,14 @@ export class Gulls {
               const yaw = wrap(this.objYaw(g.perch) + g.localYaw);
               const fx = Math.cos(yaw), fz = -Math.sin(yaw);
               const p0 = P.slice();
+              const perchObj = g.perch ? g.perch.obj : 0;
               this.release(g);
               g.yaw = yaw; g.speed = 0.06; g.vy = 0.45; g.phase = 0;
               g.mode = 'hop';
-              g.h = { p0, v0: [fx * 0.06, 0.45, fz * 0.06], p1Fn: () => [p0[0] + fx * 0.17, p0[1] + 0.25, p0[2] + fz * 0.17], v1: [fx * 0.26, 0.14, fz * 0.26], T: 0.85, t: 0 };
+              // off a vessel (which may be moving under it, funnel and all) the hop goes up more steeply
+              const vessel = VESSELS.includes(perchObj);
+              const up = vessel ? 0.4 : 0.3, fwd = vessel ? 0.1 : 0.15, T = vessel ? 1.05 : 0.9;
+              g.h = { p0, v0: [fx * 0.06, 0.45, fz * 0.06], p1Fn: () => [p0[0] + fx * fwd, p0[1] + up, p0[2] + fz * fwd], v1: [fx * 0.24, 0.16, fz * 0.24], T, t: 0 };
             }
           }
           break;

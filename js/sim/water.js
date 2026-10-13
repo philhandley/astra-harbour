@@ -125,10 +125,17 @@ export class WaterSim {
     }
   }
 
+  // Fixed 1/120 s substeps with a time accumulator. A substep size that changes from frame to frame (frame-time
+  // jitter turning 2 substeps into 3) makes the short, stiff jelly waves grow, so the step never varies.
   step(dt) {
     const N = this.N, c = this.cell, g = this.g, sig = this.sigma;
     const h = this.h, u = this.u, v = this.v, D = this.depth, S = this.solid, P = this.p, pr = this.press, pp = this.pressPrev;
-    const cdt = Math.min(dt, 1 / 30), subs = Math.max(1, Math.ceil(cdt * 120 - 1e-6)), sdt = cdt / subs;
+    const sdt = 1 / 120;
+    this.acc = Math.min((this.acc || 0) + Math.max(0, dt), 6 * sdt);
+    const subs = Math.floor(this.acc / sdt + 1e-6);
+    this.acc -= subs * sdt;
+    if (subs === 0) return;
+    dt = subs * sdt;
     const inv = 1 / c, inv2 = 1 / (c * c);
     const damp = Math.exp(-this.damping * sdt);
     const ax = this.accel[0], az = this.accel[1];
@@ -177,15 +184,10 @@ export class WaterSim {
         h[k] -= sdt * div;
       }
     }
-    // gentle smoothing keeps grid-scale noise down
+    // No extra smoothing of the heights here: smoothing h alone (not the velocities) once a frame breaks the
+    // scheme's balance and can make short waves grow at 60 fps. The velocity damping settles everything.
     let energy = 0;
-    for (let j = Math.max(1, J0); j < N - 1; j++) for (let i = 1; i < N - 1; i++) {
-      const k = j * N + i;
-      if (S[k]) continue;
-      const nb = (S[k - 1] ? h[k] : h[k - 1]) + (S[k + 1] ? h[k] : h[k + 1]) + (S[k - N] ? h[k] : h[k - N]) + (S[k + N] ? h[k] : h[k + N]);
-      h[k] += (nb * 0.25 - h[k]) * 0.02;
-      energy += h[k] * h[k];
-    }
+    for (let k = K0; k < N * N; k++) if (!S[k]) energy += h[k] * h[k];
     this.energy = energy;
     this.advectFoam(dt);
     this.time += dt;

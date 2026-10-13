@@ -31,7 +31,6 @@ export function makeAutoWork(cargo, cranes) {
     const onShip = bays.filter(b => cargo.groupAt('ship', b));
     let done = 0;
     harbour.status = `Unloading 0 / ${onShip.length}`;
-    harbour.phase = 'unloading';
     await runBoth(cranes, onShip, async (crane, bay) => {
       const g = cargo.groupAt('ship', bay);
       if (!g) return;
@@ -51,7 +50,6 @@ export function makeAutoWork(cargo, cranes) {
       await sleep(0.06);
     }
     done = 0;
-    harbour.phase = 'loading';
     harbour.status = `Loading 0 / ${load.length}`;
     await runBoth(cranes, load, async (crane, bay) => {
       const g = cargo.groupAt('staging', bay);

@@ -13,7 +13,8 @@
 // Dev viewer debug params (ctx is then the page's URLSearchParams):
 //   ?feed=1 feed at the pier end at t = 1.5 s   ?horn=1 horn at t = 2 s   ?scatter=1 (or =x,z) a finger stroke at t = 1.5 s
 //   ?follow=N keep the camera on gull N   ?gulldbg=1 log the gulls' dive decisions   ?lifebench=1 time 600 updates at load
-//   ?lifeshow=fish|gull|jelly  a still line-up near the front face (cam=0,0.2,0.75,0,0,2.3)   ?lifelog=1  counts and cost
+//   ?lifeshow=fish|gull|jelly  a still line-up near the front face (cam=0,0.2,0.75,0,0,2.3)
+//   ?lifelog=1 (also works in the app) logs cost, counts and rule checks every 2 s; ?nolife=1 switches the wildlife off.
 import { makeRand } from '../gpu/math.js';
 import { MeshBuilder, MAT } from '../gpu/mesh.js';
 import { inPier } from '../world/layout.js';
@@ -24,6 +25,7 @@ import { Jellies, jellyTemplate } from './jellies.js';
 import { Bubbles, bubbleTemplate } from './bubbles.js';
 
 export async function attach(scene, ctx = null) {
+  if (typeof location !== 'undefined' && new URLSearchParams(location.search).has('nolife')) throw new Error('life switched off (?nolife)');
   const q = typeof URLSearchParams !== 'undefined' && ctx instanceof URLSearchParams ? ctx : null;
   const api = q ? null : ctx;
   const rand = makeRand(2024);
@@ -62,6 +64,9 @@ export async function attach(scene, ctx = null) {
     for (let k = 0; k < 6; k++) events.push([1.5 + k * 0.08, () => life.scatter(sx - 0.2 + k * 0.08, sz, 0.12, 1)]);
   }
 
+  // A pellet the fish can reach: landed (or under the surface) and not used up.
+  const wetFood = p => (p.landed !== undefined ? !!p.landed : p.y <= hab.surfaceAt(p.x, p.z)) && !(p.age >= p.life);
+
   // A water point near (x, z) for food: out from under the pier deck, in open water.
   function openWater(x, z) {
     if (hab.open(x, z, 0.04) && !inPier(x, z, 0.05)) return [x, z];
@@ -88,11 +93,11 @@ export async function attach(scene, ctx = null) {
       if (pelletFn) {
         let list = null;
         try { list = pelletFn(); } catch (e) { list = null; }
-        fish.food = (list || []).filter(p => p.landed !== false && p.age < p.life).map(p => {
+        foodSrc = (list || []).filter(wetFood);
+        fish.food = foodSrc.map(p => {
           const w = { x: p.x, y: p.y, z: p.z, alive: true, bites: bites.has(p) ? bites.get(p) : 3, onEat: () => { p.age = p.life; } };
           return w;
         });
-        foodSrc = list;
       } else {
         for (const m of morsels) {
           m.t += dt;
@@ -107,7 +112,7 @@ export async function attach(scene, ctx = null) {
       fish.jellies = jellies.obstacles(obstacles);
       fish.update(dt);
       // remember how many bites each of the game's pellets has left
-      if (pelletFn && foodSrc) { let k = 0; for (const p of foodSrc) if (p.landed !== false && p.age < p.life) { const w = fish.food[k++]; if (w) bites.set(p, w.bites); } }
+      if (pelletFn && foodSrc) for (let k = 0; k < foodSrc.length; k++) { const w = fish.food[k]; if (w) bites.set(foodSrc[k], w.bites); }
       jellies.update(dt);
       bubbles.update(dt);
       gulls.update(dt);
@@ -165,7 +170,7 @@ export async function attach(scene, ctx = null) {
     for (const f of fish.fish) {
       if (f.z < -0.70) bad.fishLand++;
       if (Math.abs(f.x) > 2.55 || Math.abs(f.z) > 2.55) bad.fishOut++;
-      if (f.y < hab.floorAt(f.x, f.z) + 0.005) bad.fishRock++;
+      if (f.y < hab.floorAt(f.x, f.z) + 0.005) { bad.fishRock++; bad.rockAt = `${f.kind} ${f.x.toFixed(2)},${f.y.toFixed(3)},${f.z.toFixed(2)} floor ${hab.floorAt(f.x, f.z).toFixed(3)} surf ${hab.surfaceAt(f.x, f.z).toFixed(3)} ceil ${hab.ceilingAt(f.x, f.z).toFixed(3)}`; }
       if (f.y > hab.surfaceAt(f.x, f.z) - 0.01) bad.fishAir++;
       for (const h of hab.hulls) if (hab.hullAway(h, f.x, f.z, tmp) <= 0 && f.y > sea - h.draft - 0.005) bad.fishHull++;
     }

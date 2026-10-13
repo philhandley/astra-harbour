@@ -62,6 +62,7 @@ async function boot() {
   app.cranes.onLatch = () => audio.latch();
   app.cranes.onLand = (c, g) => { audio.clunk(g.size === 10 ? 1.2 : 0.9); if (!reduced) scene.poke(0, 0, -0.08); if (app.mode !== 'tables') addTally('boxes', g.size); app.activity = Math.min(1.5, app.activity + 0.25); };
   app.harbour.on('workStart', () => { if (app.mode !== 'tables') app.autowork.run(app.harbour); });
+  app.harbour.on('phase', p => { if (p === 'boomsUp') app.autowork.stop(); });
   // the jelly wobbles happily at a right answer, and squashes a little when a row lands
   addEventListener('harbour-right', () => { if (!reduced) scene.poke((Math.random() - 0.5) * 0.5, (Math.random() - 0.5) * 0.5, -0.35); });
   app.harbour.on('horn', () => { app.horn(true); addTally('voyages'); });
@@ -69,7 +70,7 @@ async function boot() {
   // wildlife, if it has been built
   try {
     const life = await import('./life/life.js');
-    app.life = await life.attach(scene, { perches: () => perches(), hulls: () => app.harbour.hulls() });
+    app.life = await life.attach(scene, { perches: () => perches(), hulls: () => app.harbour.hulls(), pellets: () => app.particles.pelletsInWater });
   } catch (err) { console.warn('life not loaded', String(err)); }
 
   // the first pellet to land calls the fish (once per handful)
@@ -87,7 +88,19 @@ async function boot() {
   if (q.get('tilt')) { const [ax, az] = q.get('tilt').split(',').map(Number); scene.holdTilt(ax, az); }
   if (q.get('splash')) { for (const [x, z, a] of [[-0.6, 1.2, 0.05], [0.4, 1.9, -0.04], [-1.8, 0.5, 0.04]]) scene.sim.disturb(x, z, 0.22, a); }
   if (q.get('view')) scene.camera.go(q.get('view'), true);
-  if (q.has('debugvoyage')) { app.harbour.on('workStart', () => setTimeout(() => app.harbour.finishWork(), 500)); }
+  if (q.get('cam') && q.get('cam').includes(',')) { const [yaw, pitch, dist, tx, ty, tz] = q.get('cam').split(',').map(Number); scene.camera.go({ yaw, pitch, dist, target: [tx, ty, tz] }, true); }
+  if (q.has('feed')) setTimeout(() => app.feed(), 800);
+  if (q.has('horn')) setTimeout(() => app.horn(), 1500);
+  if (q.has('simlog')) { let reported = false; setInterval(() => {
+    if (reported) return;
+    const sim = scene.sim, N = sim.N; let m = 0, mk = 0;
+    for (let k = 0; k < N * N; k++) { const a = Math.abs(sim.h[k]); if (a > m) { m = a; mk = k; } }
+    if (m > 0.06) { reported = true; const i = mk % N, j = Math.floor(mk / N);
+      const nb = [mk - 1, mk + 1, mk - N, mk + N].map(k => `${sim.solid[k]}/${sim.depth[k].toFixed(3)}/${sim.h[k].toFixed(3)}`).join(' ');
+      console.log('SIMLOG first runaway at t', scene.time.toFixed(2), 'cell', i, j, 'x,z', (-2.6 + (i + 0.5) * sim.cell).toFixed(2), (-2.6 + (j + 0.5) * sim.cell).toFixed(2), 'h', sim.h[mk].toFixed(3), 'depth', sim.depth[mk].toFixed(3), 'press', sim.press[mk].toFixed(3), 'nb', nb, 'sigma', sim.sigma, 'damp', sim.damping, 'accel', sim.accel.map(v => v.toFixed(3)).join(','));
+    } }, 100); }
+  if (q.has('simlog')) setInterval(() => { let lo = 0, hi = 0; for (const v of scene.sim.h) { if (v < lo) lo = v; if (v > hi) hi = v; } console.log('SIMLOG t', scene.time.toFixed(1), 'phase', app.harbour.phase, 'h', lo.toFixed(3), hi.toFixed(3), 'ship', app.harbour.ship.x.toFixed(2), app.harbour.ship.z.toFixed(2), 'v', app.harbour.ship.speed.toFixed(3)); }, 2000);
+  if (q.has('debugvoyage')) { app.harbour.on('workStart', () => setTimeout(() => app.castOffOrCallIn(), 500)); }
 
   scene.resize();
   addEventListener('resize', () => { scene.resize(); layoutShift(); });

@@ -33,6 +33,9 @@ const cargo = new Cargo(scene);
 const cranes = new CraneYard(scene, cargo);
 cranes.speed = 3;
 const harbour = new Harbour(scene, cranes);
+if (q.get('sigma')) scene.sim.sigma = Number(q.get('sigma'));
+if (q.has('nohull')) scene.sim.addHull = () => {};
+let maxAbsH = 0;
 let workCalls = 0;
 harbour.on('workStart', () => {
   workCalls++;
@@ -96,7 +99,7 @@ function checkHull(name, pts, draft, isShipAtBerth, skipBoats = false) {
   }
 }
 
-const dt = 1 / 30;
+const dt = 1 / Number(q.get('fps') || 60);
 let t = 0, loops = 0, lastPhase = '', phaseT = 0, minShipTug = 9;
 const phaseLog = [];
 let paraded = 0;
@@ -109,7 +112,8 @@ while (loops < LOOPS && t < 600) {
     t += dt; scene.time = t;
     cranes.update(dt);
     harbour.update(dt);
-    scene.sim.step(dt);
+    scene.sim.step(q.has('jitter') ? dt * (0.7 + Math.random() * 0.6) : dt);
+    if (k === 0) { for (const v of scene.sim.h) { const a = Math.abs(v); if (a > maxAbsH) maxAbsH = a; } }
     const sh = harbour.ship, tg = harbour.tug;
     const sp = densify(world(shipOutline, sh.x, sh.z, sh.yaw));
     const tp = densify(world(tugOutline, tg.x, tg.z, tg.yaw), 0.02);
@@ -143,6 +147,8 @@ log('simulated', t.toFixed(0), 's,', loops, 'loops in', Math.round(performance.n
 log('phases', phaseLog.slice(0, 24).join(' '));
 log('boats home:', harbour.boats.map(b => `${b.x.toFixed(2)},${b.z.toFixed(2)} away=${b.away}`).join(' '), 'boatsAway', harbour.boatsAway);
 log('min clearance: quay', stats.quay.toFixed(3), 'edge', stats.edge.toFixed(3), 'yacht', stats.yacht.toFixed(3), 'buoy', stats.buoy.toFixed(3), 'ship-tug (cruising)', minShipTug.toFixed(3));
+log('water: max |h|', maxAbsH.toFixed(4), maxAbsH < 0.15 ? 'stable' : 'UNSTABLE');
+if (maxAbsH >= 0.15) fails['water-unstable'] = 1;
 const keys = Object.keys(fails);
 if (!keys.length && loops >= LOOPS) log('PASS no collisions in', loops, 'loops');
 else log('FAIL', keys.map(k => `${k}:${fails[k]}`).join(' ') || 'loops did not complete');

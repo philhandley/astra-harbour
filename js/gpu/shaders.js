@@ -793,9 +793,10 @@ fn sceneAt(uv: vec2f) -> vec4f { return textureSampleLevel(sceneTex, linSamp, uv
   let thick = clamp(exitD - frontD, 0.0, 3.0);
 
   // refraction: offset the lookup by the surface tilt, but only onto things behind the water
-  let bend = select(0.06, 0.03, i.kind != 0u);
-  let wob = select(vec2f(0.0), vec2f(sin(i.bp.y * 60.0 + F.camPos.w), cos(i.bp.x * 50.0 + i.bp.z * 40.0)) * 0.004, i.kind != 0u);
-  var off = (n.xz * bend + wob) * min(thick, 0.7);
+  // the surface bends the view by its slope; the flat cut faces only shimmer a little (a constant offset, so
+  // nothing behind them shows twice)
+  var off = n.xz * 0.06 * min(thick, 0.7);
+  if (i.kind != 0u) { off = vec2f(sin(i.bp.y * 60.0 + F.camPos.w), cos(i.bp.x * 50.0 + i.bp.z * 40.0)) * 0.0015; }
   var uv2 = uv + vec2f(off.x, off.y);
   var sc = sceneAt(uv2);
   if (sc.a < frontD) { uv2 = uv; sc = sceneHere; }
@@ -819,7 +820,7 @@ fn sceneAt(uv: vec2f) -> vec4f { return textureSampleLevel(sceneTex, linSamp, uv
 
   // absorption and in-scattering give the jelly its body colour
   let absorb = F.waterA.rgb;
-  let T = exp(-absorb * pathLen * (2.3 - F.waterC.w));
+  let T = exp(-absorb * pathLen * (1.9 - F.waterC.w));
   let body = srgb2lin(F.waterB.rgb);
   var col = sc.rgb * T + body * (1.0 - T) * F.waterA.w;
   col += srgb2lin(F.waterC.rgb) * shaft * 0.55 * F.misc.z;
