@@ -17,6 +17,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Lexend:wght@300;400;500;600;700&display=swap">
 <link rel="stylesheet" href="css/app.css">
+<script>
+  // Keep Chrome's install offer for our own Install button (js/ui/install.js); it can arrive before the modules load.
+  addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); window.__installOffer = e; dispatchEvent(new Event('install-offer')); });
+</script>
 </head>
 <body>
 <canvas id="stage" aria-label="A harbour inside a block of jelly"></canvas>

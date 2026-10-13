@@ -55,7 +55,8 @@ body.in-game .title { font-size: 40px; }
 .panel-body { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: 18px 18px 22px; scrollbar-width: thin; }
 .sheet-handle { display: none; }
 .sec { padding: 14px 0 6px; border-top: 1px solid var(--line); }
-.sec:first-child { border-top: 0; padding-top: 2px; }
+.sec:first-child, .sec[hidden] + .sec { border-top: 0; padding-top: 2px; }
+.btn.install { width: 100%; padding: 13px 12px; font-size: 15px; }
 .sec-h { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
 .sec-h .eyebrow { font-size: 10px; }
 .sec-h small { font-size: 11px; color: var(--ink-3); }

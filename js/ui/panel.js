@@ -2,6 +2,7 @@
 // Game-facing calls return promises; abort() rejects any that are waiting (the Back button).
 import { LEVELS, PATCHES, P, roundsDone, setting } from '../game/progress.js';
 import { say, stop as stopVoice } from '../game/voice.js';
+import { canInstall, install, onInstallChange } from './install.js';
 
 const SPEAKER = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>';
 const CRANE = '<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 29V9l6-5v25M6 9h22M12 4l16 5M22 9v8"/><rect x="18" y="17" width="8" height="5" rx="1"/></svg>';
@@ -17,6 +18,7 @@ export class Panel {
     this.body = document.getElementById('panelBody');
     this.waiting = new Set();
     document.getElementById('sheetHandle').addEventListener('click', () => this.el.classList.toggle('collapsed'));
+    onInstallChange(() => { const s = this.$('#pInstall'); if (s) s.hidden = !canInstall(); });
   }
 
   // ---- helpers -------------------------------------------------------------------------------------
@@ -36,6 +38,9 @@ export class Panel {
     const a = this.app, t = P().tally;
     const starsFor = (game, keys) => keys.flatMap(k => LEVELS[game].map(l => `<i class="${roundsDone(game, k, l.id) ? 'on' : ''}"></i>`)).join('');
     this.h(`
+      <section class="sec" id="pInstall" ${canInstall() ? '' : 'hidden'}>
+        <button class="btn dark install" id="bInstall">Install Jelly Harbour</button>
+      </section>
       <section class="sec">
         <div class="sec-h"><span class="eyebrow">Play</span><small>with the grown-up</small></div>
         <div class="games">
@@ -83,6 +88,7 @@ export class Panel {
         <div class="log">${PATCHES.map(p => `<span class="mini ${P().done[p.id] ? '' : 'off'}" style="background:${p.colour}" title="${p.title}">${p.label}</span>`).join('')}</div>
       </section>`);
     this.body.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', () => a.startGame(b.dataset.go)));
+    this.$('#bInstall').addEventListener('click', () => install());
     this.mode = 'home';
     if (a.flat) return;
     this.$('#bCast').addEventListener('click', () => a.castOffOrCallIn());
