@@ -1,0 +1,8 @@
+# Local-only files
+.claude/
+*.log
+Thumbs.db
+desktop.ini
+tools/shots/
+dev/shots/
+dev/scratch-*.html

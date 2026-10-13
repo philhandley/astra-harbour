@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Harbour viewer</title>
+<style>html,body{margin:0;height:100%;overflow:hidden;background:#e9e4dc}canvas{width:100%;height:100%;display:block}#info{position:fixed;left:8px;top:6px;font:12px monospace;color:#333}</style>
+</head><body><canvas id="c"></canvas><div id="info"></div>
+<script type="module">
+// Dev viewer: ?b=town,cranes (builders; default all) &view=home|ship|pier|sea &cam=yaw,pitch,dist,tx,ty,tz
+// &t=seconds to pre-run &waves=1 &flavour=seaglass|blueberry|lime &tilt=ax,az
+import { Scene, BUILDERS } from '../js/world/scene.js';
+import { shotReady } from './shotkit.js';
+import { placeDefaults } from '../js/world/rig.js';
+const q = new URLSearchParams(location.search);
+const canvas = document.getElementById('c');
+const t0 = performance.now();
+let scene;
+try {
+  scene = await Scene.create(canvas, { builders: q.get('b') ? q.get('b').split(',').filter(Boolean) : BUILDERS });
+} catch (e) { console.error('VIEW failed', String(e), e.stack); throw e; }
+window.__scene = scene;
+placeDefaults(scene);
+if (q.get('flavour')) scene.setFlavour(q.get('flavour'));
+if (q.get('view')) scene.camera.go(q.get('view'), true);
+if (q.get('cam')) { const [yaw, pitch, dist, tx, ty, tz] = q.get('cam').split(',').map(Number); scene.camera.go({ yaw, pitch, dist, target: [tx, ty, tz] }, true); }
+if (q.get('tilt')) { const [ax, az] = q.get('tilt').split(',').map(Number); scene.holdTilt(ax, az); }
+const sysMods = (q.get('sys') || '').split(',').filter(Boolean);
+const systems = [];
+for (const m of sysMods) { const mod = await import(`../js/${m}.js`); systems.push(await mod.attach(scene, q)); }
+scene.resize();
+addEventListener('resize', () => scene.resize());
+const pre = Number(q.get('t') || 0);
+if (q.get('waves')) { scene.sim.disturb(-0.6, 1.2, 0.25, 0.05); scene.sim.disturb(0.6, 1.9, 0.18, -0.04); scene.sim.disturb(-1.8, 0.4, 0.2, 0.04); }
+for (let t = 0; t < pre; t += 1 / 60) { for (const s of systems) s.update && s.update(1 / 60); scene.step(1 / 60); }
+console.log('VIEW ready', JSON.stringify(scene.buildStats), 'tris', scene.staticMesh.count / 3, 'ms', Math.round(performance.now() - t0));
+let last = performance.now();
+let frames = 0;
+function loop(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  for (const s of systems) s.update && s.update(dt);
+  scene.step(dt);
+  scene.render();
+  if (++frames === Number(q.get('frames') || 40)) { console.log('VIEW foam max', Math.max(...scene.sim.foam).toFixed(2), 'h range', Math.min(...scene.sim.h).toFixed(3), Math.max(...scene.sim.h).toFixed(3)); console.log('VIEW frames ok', scene.r.errors.length ? 'errors ' + scene.r.errors.slice(0, 3).join(' | ') : 'no gpu errors'); setTimeout(shotReady, 50); }
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script></body></html>
